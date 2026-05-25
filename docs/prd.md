@@ -49,7 +49,7 @@ The first release should include:
 - dataset inspection with Kaggle-style split and target-distribution hints
 - benchmark lookup with a curated local catalog
 - docs fetch with local catalog and direct official-doc URL fetch
-- GitHub example discovery with unauthenticated repository search
+- GitHub example discovery with unauthenticated repository search and known-repo snippets
 - Codex custom agent/plugin examples
 - Claude Code skill/subagent/plugin examples
 - non-destructive Codex, Claude Code, and generic MCP init plans for existing ML repositories

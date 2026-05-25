@@ -83,7 +83,8 @@ Working today:
 - `labmate docs-fetch <query>` searches an official-docs catalog, and
   `--url <docs-url>` fetches exact framework documentation pages.
 - `labmate github-find-examples <query>` finds candidate public GitHub
-  repositories for implementation evidence.
+  repositories for implementation evidence; with `--repository owner/repo`, it
+  also returns small public file snippets from matched paths.
 - `labmate-mcp` starts a stdio MCP server exposing the read-only registry tools.
 - `labmate init codex`, `labmate init claude-code`, and `labmate init generic`
   write non-destructive setup artifacts for existing ML repositories.
@@ -94,8 +95,8 @@ Still stubbed or limited:
   structured backend-unavailable failures; the default local corpus works.
 - `benchmark-lookup --backend papers_with_code` and `--backend openml` return
   structured backend-unavailable failures; the default local catalog works.
-- `github-find-examples` uses unauthenticated repository search; file-level code
-  snippets need a future authenticated code-search backend.
+- `github-find-examples` uses unauthenticated GitHub APIs. Cross-repository
+  code search still needs a future authenticated backend.
 
 ## Agent Workflow
 

@@ -13,6 +13,24 @@ from datetime import UTC, datetime
 Fetch = Callable[[str], bytes | str]
 
 _GITHUB_API_URL = "https://api.github.com"
+MAX_FILE_SNIPPET_CHARS = 1_500
+MAX_RAW_FILE_CHARS = 20_000
+MAX_FILE_SIZE_BYTES = 300_000
+CODE_SUFFIXES = {".py", ".r", ".R", ".jl", ".sql", ".sh"}
+DOC_SUFFIXES = {".md", ".rst", ".txt"}
+NOTEBOOK_SUFFIX = ".ipynb"
+FILE_NAME_SIGNALS = (
+    "baseline",
+    "train",
+    "model",
+    "feature",
+    "submit",
+    "submission",
+    "inference",
+    "predict",
+    "eda",
+    "notebook",
+)
 
 
 @dataclass(frozen=True)
@@ -48,12 +66,41 @@ class GitHubRepositoryExample:
 
 
 @dataclass(frozen=True)
+class GitHubFileExample:
+    repository: str
+    path: str
+    url: str
+    raw_url: str
+    size_bytes: int | None
+    snippet: str
+    line_start: int
+    line_end: int
+    matched_signals: tuple[str, ...]
+    provenance_url: str
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "repository": self.repository,
+            "path": self.path,
+            "url": self.url,
+            "raw_url": self.raw_url,
+            "size_bytes": self.size_bytes,
+            "snippet": self.snippet,
+            "line_start": self.line_start,
+            "line_end": self.line_end,
+            "matched_signals": list(self.matched_signals),
+            "provenance_url": self.provenance_url,
+        }
+
+
+@dataclass(frozen=True)
 class GitHubExampleSearchResult:
     query: str
     backend: str
     retrieved_at: str
     repository_filter: str | None
     examples: tuple[GitHubRepositoryExample, ...]
+    file_examples: tuple[GitHubFileExample, ...] = field(default_factory=tuple)
     warnings: tuple[str, ...] = field(default_factory=tuple)
 
     def to_dict(self) -> dict[str, object]:
@@ -63,6 +110,7 @@ class GitHubExampleSearchResult:
             "retrieved_at": self.retrieved_at,
             "repository_filter": self.repository_filter,
             "examples": [example.to_dict() for example in self.examples],
+            "file_examples": [example.to_dict() for example in self.file_examples],
             "warnings": list(self.warnings),
         }
 
@@ -94,14 +142,22 @@ class GitHubRepositorySearchBackend:
             raise ValueError("max_results must be positive")
 
         tokens = _tokenize(query)
+        file_examples: tuple[GitHubFileExample, ...] = ()
         if repository:
             normalized_repository = _normalize_repository(repository)
             url = f"{self._api_url}/repos/{normalized_repository}"
             payload = _json_payload(self._fetch(url))
-            examples = (_example_from_repo_payload(payload, tokens, provenance_url=url),)
+            repository_example = _example_from_repo_payload(payload, tokens, provenance_url=url)
+            examples = (repository_example,)
+            file_examples, file_warnings = self._find_repository_file_examples(
+                repository_example,
+                tokens=tokens,
+                max_results=max_results,
+            )
             warnings = (
-                "Repository filter returns repository metadata only; "
-                "authenticated code search is needed for file-level snippets.",
+                "Repository filter inspects public files through unauthenticated GitHub APIs; "
+                "cross-repository code search still needs an authenticated backend.",
+                *file_warnings,
             )
         else:
             url = self._search_url(query, max_results)
@@ -113,8 +169,7 @@ class GitHubRepositorySearchBackend:
             )
             warnings = (
                 "Uses unauthenticated GitHub repository search; results are rate limited.",
-                "Use repository to inspect a known repo, "
-                "or authenticated code search for snippets.",
+                "Pass repository=owner/repo to inspect public files in a known repo.",
             )
 
         return GitHubExampleSearchResult(
@@ -123,6 +178,7 @@ class GitHubRepositorySearchBackend:
             retrieved_at=_isoformat(self._now()),
             repository_filter=repository,
             examples=examples,
+            file_examples=file_examples,
             warnings=warnings,
         )
 
@@ -136,6 +192,74 @@ class GitHubRepositorySearchBackend:
             }
         )
         return f"{self._api_url}/search/repositories?{params}"
+
+    def _find_repository_file_examples(
+        self,
+        repository: GitHubRepositoryExample,
+        *,
+        tokens: tuple[str, ...],
+        max_results: int,
+    ) -> tuple[tuple[GitHubFileExample, ...], tuple[str, ...]]:
+        if not repository.default_branch:
+            return (), ("Repository metadata did not include a default branch; skipped files.",)
+
+        tree_url = _tree_url(self._api_url, repository.repository, repository.default_branch)
+        try:
+            tree_payload = _json_payload(self._fetch(tree_url))
+        except (OSError, ValueError) as exc:
+            return (), (f"Could not fetch repository tree for file examples: {exc}",)
+
+        warnings: list[str] = []
+        if tree_payload.get("truncated") is True:
+            warnings.append(
+                "Repository tree response was truncated; file examples may be incomplete."
+            )
+
+        candidates = _rank_file_candidates(tree_payload, tokens)
+        file_examples: list[GitHubFileExample] = []
+        skipped_fetches = 0
+        for candidate in candidates:
+            if len(file_examples) >= max_results:
+                break
+
+            path = str(candidate["path"])
+            size_bytes = candidate["size_bytes"]
+            candidate_signals = tuple(
+                signal for signal in candidate["matched_signals"] if isinstance(signal, str)
+            )
+            raw_url = _raw_url(repository.repository, repository.default_branch, path)
+            try:
+                raw_payload = self._fetch(raw_url)
+            except OSError:
+                skipped_fetches += 1
+                continue
+
+            content = (
+                raw_payload.decode("utf-8", errors="replace")
+                if isinstance(raw_payload, bytes)
+                else raw_payload
+            )
+            snippet = _snippet_for_tokens(content[:MAX_RAW_FILE_CHARS], tokens)
+            file_examples.append(
+                GitHubFileExample(
+                    repository=repository.repository,
+                    path=path,
+                    url=_blob_url(repository.repository, repository.default_branch, path),
+                    raw_url=raw_url,
+                    size_bytes=size_bytes if isinstance(size_bytes, int) else None,
+                    snippet=snippet["text"],
+                    line_start=snippet["line_start"],
+                    line_end=snippet["line_end"],
+                    matched_signals=candidate_signals + tuple(snippet["matched_signals"]),
+                    provenance_url=tree_url,
+                )
+            )
+
+        if skipped_fetches:
+            warnings.append("Some candidate file snippets could not be fetched.")
+        if not file_examples:
+            warnings.append("No file-level examples matched the query in the repository tree.")
+        return tuple(file_examples), tuple(warnings)
 
 
 def find_github_examples(
@@ -197,6 +321,113 @@ def _json_payload(payload: bytes | str) -> dict[str, object]:
     return data
 
 
+def _rank_file_candidates(
+    tree_payload: Mapping[str, object],
+    tokens: tuple[str, ...],
+) -> list[dict[str, object]]:
+    tree = tree_payload.get("tree")
+    if not isinstance(tree, list):
+        return []
+
+    candidates = []
+    for entry in tree:
+        if not isinstance(entry, dict) or entry.get("type") != "blob":
+            continue
+
+        path = _as_str(entry.get("path"))
+        if not path or not _is_supported_example_path(path):
+            continue
+
+        size = _as_int_or_none(entry.get("size"))
+        if size is not None and size > MAX_FILE_SIZE_BYTES:
+            continue
+
+        score, signals = _file_candidate_score(path, tokens)
+        if score <= 0:
+            continue
+
+        candidates.append(
+            {
+                "path": path,
+                "size_bytes": size,
+                "score": score,
+                "matched_signals": signals,
+            }
+        )
+
+    return sorted(candidates, key=lambda item: (-int(item["score"]), str(item["path"])))[:25]
+
+
+def _is_supported_example_path(path: str) -> bool:
+    suffix = _path_suffix(path)
+    return suffix in CODE_SUFFIXES or suffix in DOC_SUFFIXES or suffix == NOTEBOOK_SUFFIX
+
+
+def _file_candidate_score(path: str, tokens: tuple[str, ...]) -> tuple[int, tuple[str, ...]]:
+    normalized_path = path.casefold()
+    score = 0
+    signals = []
+    for token in tokens:
+        if token in normalized_path:
+            score += 8
+            signals.append(f"matched {token} in path")
+    for signal in FILE_NAME_SIGNALS:
+        if signal in normalized_path:
+            score += 3
+            signals.append(f"path contains {signal}")
+    if _path_suffix(path) in CODE_SUFFIXES:
+        score += 2
+        signals.append("code file")
+    if path.casefold().startswith(("examples/", "example/", "notebooks/", "notebook/")):
+        score += 2
+        signals.append("example directory")
+    return score, tuple(dict.fromkeys(signals))
+
+
+def _snippet_for_tokens(content: str, tokens: tuple[str, ...]) -> dict[str, object]:
+    lines = content.splitlines()
+    if not lines:
+        return {"text": "", "line_start": 1, "line_end": 1, "matched_signals": []}
+
+    match_index = _first_matching_line(lines, tokens)
+    if match_index is None:
+        match_index = _first_nonempty_line(lines)
+
+    start = max(0, match_index - 2)
+    end = min(len(lines), match_index + 3)
+    snippet_lines = lines[start:end]
+    text = "\n".join(snippet_lines).strip()
+    if len(text) > MAX_FILE_SNIPPET_CHARS:
+        text = text[:MAX_FILE_SNIPPET_CHARS].rstrip() + "..."
+
+    return {
+        "text": text,
+        "line_start": start + 1,
+        "line_end": end,
+        "matched_signals": _matched_signals(
+            fields={"snippet": text},
+            tokens=tokens,
+        ),
+    }
+
+
+def _first_matching_line(lines: list[str], tokens: tuple[str, ...]) -> int | None:
+    if not tokens:
+        return None
+    for index, line in enumerate(lines):
+        lowered = line.casefold()
+        if any(token in lowered for token in tokens):
+            return index
+    return None
+
+
+def _first_nonempty_line(lines: list[str]) -> int:
+    for index, line in enumerate(lines):
+        if line.strip():
+            return index
+    return 0
+
+
 def _fetch_url(url: str) -> bytes:
     request = urllib.request.Request(
         url,
@@ -217,6 +448,26 @@ def _normalize_repository(repository: str) -> str:
     return normalized
 
 
+def _tree_url(api_url: str, repository: str, branch: str) -> str:
+    return (
+        f"{api_url}/repos/{repository}/git/trees/{urllib.parse.quote(branch, safe='')}?recursive=1"
+    )
+
+
+def _blob_url(repository: str, branch: str, path: str) -> str:
+    return (
+        f"https://github.com/{repository}/blob/"
+        f"{urllib.parse.quote(branch, safe='')}/{urllib.parse.quote(path, safe='/')}"
+    )
+
+
+def _raw_url(repository: str, branch: str, path: str) -> str:
+    return (
+        f"https://raw.githubusercontent.com/{repository}/"
+        f"{urllib.parse.quote(branch, safe='')}/{urllib.parse.quote(path, safe='/')}"
+    )
+
+
 def _matched_signals(*, fields: dict[str, str], tokens: tuple[str, ...]) -> tuple[str, ...]:
     signals: list[str] = []
     for field_name, value in fields.items():
@@ -235,6 +486,19 @@ def _as_int(value: object) -> int:
     if isinstance(value, bool):
         return 0
     return value if isinstance(value, int) else 0
+
+
+def _as_int_or_none(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    return value if isinstance(value, int) else None
+
+
+def _path_suffix(path: str) -> str:
+    dot_index = path.rfind(".")
+    if dot_index < 0:
+        return ""
+    return path[dot_index:]
 
 
 def _tokenize(query: str) -> tuple[str, ...]:

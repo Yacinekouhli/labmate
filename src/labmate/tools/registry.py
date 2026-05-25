@@ -771,13 +771,19 @@ _TOOLS: tuple[ToolDefinition, ...] = (
     ),
     ToolDefinition(
         name="github_find_examples",
-        description="Find implementation examples in GitHub repositories.",
+        description=(
+            "Find implementation examples in GitHub repositories, including "
+            "file snippets when a repository filter is provided."
+        ),
         read_only=True,
         backends=("github",),
         input_schema=_object_schema(
             {
                 "query": _string_schema("Implementation pattern or API to search for."),
-                "repository": _string_schema("Optional owner/repo filter.", min_length=1),
+                "repository": _string_schema(
+                    "Optional owner/repo filter. Enables public file-snippet inspection.",
+                    min_length=1,
+                ),
                 "max_results": _integer_schema(
                     "Maximum examples to return.",
                     minimum=1,
