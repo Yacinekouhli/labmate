@@ -17,8 +17,9 @@ management. Labmate provides the portable layer:
 
 ## Status
 
-Early project scaffold. The first implementation goal is a read-only research
-pack:
+Early project scaffold. Labmate currently has a shared tool registry, stable
+CLI JSON contracts, a real stdio MCP server, and setup generators for Codex and
+Claude Code. The first implementation goal is a read-only research pack:
 
 - literature search
 - citation graph
@@ -30,6 +31,16 @@ pack:
 Mutating tools such as job submission, Kaggle submissions, repository writes,
 and experiment-tracker writes are intentionally out of scope for the first
 release.
+
+Working today:
+
+- `labmate tools` lists the shared registry.
+- `labmate dataset-inspect <path>` inspects local CSV/TSV files and Kaggle-style
+  folders containing `train.csv`, `test.csv`, and `sample_submission.csv`.
+- `labmate literature-search --query ...` uses the arXiv backend.
+- `labmate-mcp` starts a stdio MCP server exposing the read-only registry tools.
+- `labmate init codex` and `labmate init claude-code` write non-destructive
+  setup artifacts for existing ML repositories.
 
 ## Repository Layout
 

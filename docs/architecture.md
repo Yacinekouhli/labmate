@@ -38,16 +38,16 @@ This registry should power:
 
 ## MCP Surface
 
-The first MCP slice is an adapter boundary, not a second source of truth. The
+The MCP server is an adapter boundary, not a second source of truth. The
 `labmate.mcp_server` module derives MCP-compatible tool metadata directly from
-the shared registry and exposes it through `list_mcp_tools()` and
-`labmate-mcp --list-tools`.
+the shared registry and exposes it through `list_mcp_tools()`,
+`labmate-mcp --list-tools`, and a stdio MCP transport.
 
-Until the project chooses a concrete MCP Python dependency and transport, the
-`labmate-mcp` entrypoint refuses to start a live server. This keeps Codex and
-Claude Code integration work unblocked while avoiding a speculative runtime
-dependency. The real server must continue to generate its tools from the same
-registry used by CLI commands and tests.
+The MCP adapter exposes the read-only registry tools. Tool calls use the same
+`labmate.tool.v1` response contract as CLI commands, including structured
+failure payloads for invalid arguments and unavailable backends. This keeps
+Codex, Claude Code, and other MCP clients aligned with the same registry used by
+CLI commands and tests.
 
 ## CLI Contracts
 
