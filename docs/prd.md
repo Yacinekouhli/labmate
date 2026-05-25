@@ -47,7 +47,8 @@ The first release should include:
 - literature search with arXiv-backed results
 - first-pass research brief over local datasets, benchmark context, and ordered
   follow-up research actions
-- dataset inspection with Kaggle-style split and target-distribution hints
+- dataset inspection with plain/gzipped CSV and TSV support, Kaggle-style split
+  hints, and target-distribution hints
 - benchmark lookup with a curated local catalog
 - docs fetch with local catalog and direct official-doc URL fetch
 - GitHub example discovery with unauthenticated repository search and known-repo snippets

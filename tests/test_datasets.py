@@ -1,3 +1,5 @@
+import gzip
+
 from labmate.tools.datasets import inspect_local_dataset, inspect_tabular_file
 
 
@@ -53,6 +55,21 @@ def test_inspect_tabular_file_supports_tsv(tmp_path) -> None:
     assert result["row_count"] == 2
     assert [column["name"] for column in result["columns"]] == ["sample_id", "text", "label"]
     assert result["target_column_hints"][0]["column"] == "label"
+
+
+def test_inspect_tabular_file_supports_gzipped_csv(tmp_path) -> None:
+    csv_path = tmp_path / "train.csv.gz"
+    with gzip.open(csv_path, mode="wt", encoding="utf-8") as handle:
+        handle.write("id,feature,target\n1,10,0\n2,11,1\n")
+
+    result = inspect_tabular_file(csv_path)
+
+    assert result["file_name"] == "train.csv.gz"
+    assert result["format"] == "csv"
+    assert result["compression"] == "gzip"
+    assert result["delimiter"] == ","
+    assert result["row_count"] == 2
+    assert result["target_column_hints"][0]["column"] == "target"
 
 
 def test_inspect_local_dataset_directory_adds_split_and_submission_hints(tmp_path) -> None:
@@ -119,6 +136,26 @@ def test_inspect_local_dataset_directory_adds_split_and_submission_hints(tmp_pat
             "snippet": '{"title": "Example Competition", "id": "example"}',
             "json_keys": ["id", "title"],
         },
+    ]
+    assert result["warnings"] == []
+
+
+def test_inspect_local_dataset_directory_supports_gzipped_kaggle_splits(tmp_path) -> None:
+    with gzip.open(tmp_path / "train.csv.gz", mode="wt", encoding="utf-8") as handle:
+        handle.write("id,feature,target\n1,10,0\n2,11,1\n")
+    with gzip.open(tmp_path / "test.csv.gz", mode="wt", encoding="utf-8") as handle:
+        handle.write("id,feature\n3,12\n4,13\n")
+    with gzip.open(tmp_path / "sample_submission.csv.gz", mode="wt", encoding="utf-8") as handle:
+        handle.write("id,target\n3,0\n4,0\n")
+
+    result = inspect_local_dataset(tmp_path)
+
+    assert result["relations"]["train_file"] == "train.csv.gz"
+    assert result["relations"]["test_file"] == "test.csv.gz"
+    assert result["relations"]["sample_submission_file"] == "sample_submission.csv.gz"
+    assert result["relations"]["likely_target_columns"] == ["target"]
+    assert result["relations"]["train_test_schema_alignment"]["common_feature_columns"] == [
+        "feature"
     ]
     assert result["warnings"] == []
 

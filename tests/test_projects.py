@@ -1,3 +1,5 @@
+import gzip
+
 from labmate.tools.projects import scan_local_project
 
 
@@ -55,3 +57,28 @@ def test_scan_local_project_reports_missing_dataset_candidates(tmp_path) -> None
     assert result["warnings"] == [
         "No local CSV/TSV dataset candidates were found within scan limits."
     ]
+
+
+def test_scan_local_project_finds_gzipped_kaggle_dataset(tmp_path) -> None:
+    data = tmp_path / "compressed-data"
+    data.mkdir()
+    with gzip.open(data / "train.csv.gz", mode="wt", encoding="utf-8") as handle:
+        handle.write("id,feature,target\n1,10,0\n")
+    with gzip.open(data / "test.csv.gz", mode="wt", encoding="utf-8") as handle:
+        handle.write("id,feature\n2,11\n")
+    with gzip.open(data / "sample_submission.csv.gz", mode="wt", encoding="utf-8") as handle:
+        handle.write("id,target\n2,0\n")
+
+    result = scan_local_project(tmp_path)
+
+    assert result["dataset_candidates"][0]["kind"] == "kaggle_dataset_directory"
+    assert result["dataset_candidates"][0]["files"] == [
+        "compressed-data/sample_submission.csv.gz",
+        "compressed-data/test.csv.gz",
+        "compressed-data/train.csv.gz",
+    ]
+    assert result["dataset_candidates"][0]["roles"] == {
+        "sample_submission": "sample_submission.csv.gz",
+        "test": "test.csv.gz",
+        "train": "train.csv.gz",
+    }

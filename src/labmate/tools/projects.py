@@ -159,10 +159,10 @@ def _ignore_dir(path: Path) -> bool:
 
 def _classify_file(root: Path, file_path: Path, state: dict[str, Any]) -> None:
     name = file_path.name
-    suffix = file_path.suffix.lower()
 
-    if suffix in DATASET_SUFFIXES:
+    if _is_supported_dataset_file(file_path):
         state["dataset_files"].append(file_path)
+    suffix = file_path.suffix.lower()
     if suffix == NOTEBOOK_SUFFIX or suffix in SCRIPT_SUFFIXES:
         state["code_files"].append(file_path)
     if name in DEPENDENCY_FILES:
@@ -234,11 +234,29 @@ def _file_dataset_candidate(root: Path, file_path: Path) -> dict[str, Any]:
 def _dataset_roles(files: list[Path]) -> dict[str, str]:
     roles = {}
     for file_path in files:
-        normalized = _normalize_name(file_path.stem)
+        normalized = _normalize_name(_tabular_stem(file_path))
         role = _file_role(normalized)
         if role and role not in roles:
             roles[role] = file_path.name
     return roles
+
+
+def _is_supported_dataset_file(path: Path) -> bool:
+    return _tabular_suffix(path) in DATASET_SUFFIXES
+
+
+def _tabular_suffix(path: Path) -> str:
+    suffixes = [suffix.lower() for suffix in path.suffixes]
+    if suffixes[-2:] in ([".csv", ".gz"], [".tsv", ".gz"]):
+        return suffixes[-2]
+    return path.suffix.lower()
+
+
+def _tabular_stem(path: Path) -> str:
+    suffixes = [suffix.lower() for suffix in path.suffixes]
+    if suffixes[-2:] in ([".csv", ".gz"], [".tsv", ".gz"]):
+        return path.name[: -len("".join(path.suffixes[-2:]))]
+    return path.stem
 
 
 def _file_role(normalized_stem: str) -> str | None:

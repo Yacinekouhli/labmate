@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import gzip
 import json
 from collections import Counter
 from collections.abc import Iterable
@@ -93,7 +94,7 @@ def inspect_local_directory(
             max_profile_rows=max_profile_rows,
         )
         for file_path in sorted(directory.iterdir())
-        if file_path.is_file() and file_path.suffix.lower() in SUPPORTED_SUFFIXES
+        if file_path.is_file() and _is_supported_tabular_path(file_path)
     ]
     if not files:
         raise DatasetInspectionError(f"No supported CSV/TSV files found in: {directory}")
@@ -121,15 +122,15 @@ def inspect_tabular_file(
     file_path = Path(path)
     if not file_path.is_file():
         raise DatasetInspectionError(f"Not a file: {file_path}")
-    if file_path.suffix.lower() not in SUPPORTED_SUFFIXES:
-        raise DatasetInspectionError(f"Unsupported dataset file type: {file_path.suffix}")
+    if not _is_supported_tabular_path(file_path):
+        raise DatasetInspectionError(f"Unsupported dataset file type: {file_path.name}")
     if sample_size < 0:
         raise DatasetInspectionError("sample_size must be non-negative")
     if max_profile_rows <= 0:
         raise DatasetInspectionError("max_profile_rows must be positive")
 
     delimiter = _delimiter_for_path(file_path)
-    with file_path.open(newline="", encoding="utf-8-sig") as handle:
+    with _open_tabular_file(file_path) as handle:
         reader = csv.DictReader(handle, delimiter=delimiter)
         fieldnames = reader.fieldnames
         if not fieldnames:
@@ -161,7 +162,8 @@ def inspect_tabular_file(
         "kind": "tabular_file",
         "path": str(file_path),
         "file_name": file_path.name,
-        "format": file_path.suffix.lower().removeprefix("."),
+        "format": _tabular_suffix(file_path).removeprefix("."),
+        "compression": _compression(file_path),
         "delimiter": delimiter,
         "row_count": None if truncated else row_count,
         "row_count_status": "bounded" if truncated else "exact",
@@ -176,9 +178,30 @@ def inspect_tabular_file(
 
 
 def _delimiter_for_path(path: Path) -> str:
-    if path.suffix.lower() == ".tsv":
+    if _tabular_suffix(path) == ".tsv":
         return "\t"
     return ","
+
+
+def _open_tabular_file(path: Path):
+    if _compression(path) == "gzip":
+        return gzip.open(path, mode="rt", newline="", encoding="utf-8-sig")
+    return path.open(newline="", encoding="utf-8-sig")
+
+
+def _is_supported_tabular_path(path: Path) -> bool:
+    return _tabular_suffix(path) in SUPPORTED_SUFFIXES
+
+
+def _tabular_suffix(path: Path) -> str:
+    suffixes = [suffix.lower() for suffix in path.suffixes]
+    if suffixes[-2:] in ([".csv", ".gz"], [".tsv", ".gz"]):
+        return suffixes[-2]
+    return path.suffix.lower()
+
+
+def _compression(path: Path) -> str | None:
+    return "gzip" if path.suffix.lower() == ".gz" else None
 
 
 def _new_column_profile(name: str, position: int) -> dict[str, Any]:
@@ -618,7 +641,7 @@ def _id_column_names(file_info: dict[str, Any]) -> list[str]:
 
 
 def _file_role(file_name: str) -> str | None:
-    normalized = _normalize_name(Path(file_name).stem)
+    normalized = _normalize_name(_tabular_stem(file_name))
     if "sample_submission" in normalized or normalized in {"submission", "sample"}:
         return "sample_submission"
     if normalized in {"train", "training"} or normalized.startswith("train_"):
@@ -626,6 +649,14 @@ def _file_role(file_name: str) -> str | None:
     if normalized in {"test", "testing"} or normalized.startswith("test_"):
         return "test"
     return None
+
+
+def _tabular_stem(file_name: str) -> str:
+    path = Path(file_name)
+    suffixes = [suffix.lower() for suffix in path.suffixes]
+    if suffixes[-2:] in ([".csv", ".gz"], [".tsv", ".gz"]):
+        return path.name[: -len("".join(path.suffixes[-2:]))]
+    return path.stem
 
 
 def _normalize_name(name: str) -> str:
