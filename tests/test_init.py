@@ -128,6 +128,7 @@ def test_init_templates_include_actionable_labmate_workflow(tmp_path: Path) -> N
 
     for text in (agents, program, skill):
         assert "labmate project-scan <project-root>" in text
+        assert "labmate experiment-summary <project-root-or-results.tsv>" in text
         assert "labmate research-brief <dataset-path>" in text
         assert "labmate dataset-inspect <dataset-path>" in text
         assert 'labmate benchmark-lookup "<task or dataset>"' in text

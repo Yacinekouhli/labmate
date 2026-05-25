@@ -18,6 +18,7 @@ def test_registry_contains_initial_read_only_tools() -> None:
         "citation_graph",
         "dataset_inspect",
         "project_scan",
+        "experiment_summary",
         "research_brief",
         "benchmark_lookup",
         "docs_fetch",

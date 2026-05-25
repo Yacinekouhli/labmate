@@ -84,6 +84,16 @@ def _build_parser() -> argparse.ArgumentParser:
     project.add_argument("--max-depth", type=int, default=4)
     project.add_argument("--max-entries", type=int, default=500)
 
+    experiment = subparsers.add_parser(
+        "experiment-summary",
+        help="Summarize a local experiment ledger.",
+    )
+    experiment.add_argument("path", help="Experiment ledger file or project directory.")
+    experiment.add_argument(
+        "--backend", default="local", help="Experiment summary backend. Defaults to local."
+    )
+    experiment.add_argument("--max-rows", type=int, default=1_000)
+
     research = subparsers.add_parser(
         "research-brief",
         help="Create a first-pass ML research brief from a local dataset.",
@@ -183,6 +193,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "backend": args.backend,
                     "max_depth": args.max_depth,
                     "max_entries": args.max_entries,
+                },
+            )
+        )
+
+    if args.command == "experiment-summary":
+        return _print_response(
+            call_tool(
+                "experiment_summary",
+                {
+                    "path": args.path,
+                    "backend": args.backend,
+                    "max_rows": args.max_rows,
                 },
             )
         )

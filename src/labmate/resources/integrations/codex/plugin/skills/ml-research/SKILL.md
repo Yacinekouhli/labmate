@@ -15,6 +15,7 @@ Workflow:
 2. Identify the research questions blocking implementation.
 3. Run focused Labmate tools:
    - `labmate project-scan <project-root>`
+   - `labmate experiment-summary <project-root-or-results.tsv>`
    - `labmate research-brief <dataset-path>`
    - `labmate dataset-inspect <dataset-path>`
    - `labmate benchmark-lookup "<task or dataset>"`

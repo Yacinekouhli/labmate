@@ -13,6 +13,7 @@ You are a read-only ML research agent.
 Gather evidence with Labmate tools before implementation:
 
 - `labmate project-scan <project-root>`
+- `labmate experiment-summary <project-root-or-results.tsv>`
 - `labmate research-brief <dataset-path>`
 - `labmate dataset-inspect <dataset-path>`
 - `labmate benchmark-lookup "<task or dataset>"`

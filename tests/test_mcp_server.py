@@ -121,6 +121,28 @@ def test_project_scan_can_be_called_through_mcp_helper(tmp_path) -> None:
     assert result.structuredContent["result"]["dataset_candidates"][0]["path"] == "data"
 
 
+def test_experiment_summary_can_be_called_through_mcp_helper(tmp_path) -> None:
+    ledger = tmp_path / "results.tsv"
+    ledger.write_text(
+        (
+            "timestamp_utc\tcommit\texperiment\tmodel_family\tfeatures\tvalidation_strategy\t"
+            "metric\tscore\tscore_direction\tstatus\tartifacts\tnotes\n"
+            "2026-05-25T10:00:00Z\tabc123\tdummy\tdummy\tbase\tk_fold\t"
+            "rmse\t1.0\tminimize\tkeep\tmodel.pkl\tbaseline\n"
+        ),
+        encoding="utf-8",
+    )
+
+    result = call_mcp_tool("experiment_summary", {"path": str(ledger)})
+
+    assert result.isError is False
+    assert result.structuredContent is not None
+    assert result.structuredContent["schema_version"] == "labmate.tool.v1"
+    assert result.structuredContent["ok"] is True
+    assert result.structuredContent["tool"] == "experiment_summary"
+    assert result.structuredContent["result"]["best_run"]["experiment"] == "dummy"
+
+
 def test_dataset_inspect_can_be_called_through_registered_server_handler(tmp_path) -> None:
     (tmp_path / "train.csv").write_text("id,feature,target\n1,10,0\n2,11,1\n", encoding="utf-8")
     (tmp_path / "test.csv").write_text("id,feature\n3,12\n4,13\n", encoding="utf-8")

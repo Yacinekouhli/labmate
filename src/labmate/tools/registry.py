@@ -10,6 +10,7 @@ from labmate.contracts import ExitCode, JsonObject, JsonValue, ToolResponse, fai
 from labmate.tools.benchmarks import LocalBenchmarkBackend, lookup_benchmarks
 from labmate.tools.datasets import DatasetInspectionError, inspect_local_dataset
 from labmate.tools.docs import OfficialDocsBackend, fetch_docs
+from labmate.tools.experiments import ExperimentSummaryError, summarize_experiments
 from labmate.tools.github import GitHubRepositorySearchBackend, find_github_examples
 from labmate.tools.literature import (
     ArxivSearchBackend,
@@ -496,6 +497,43 @@ def _project_scan_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
     )
 
 
+def _experiment_summary_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
+    try:
+        path = _as_str(arguments, "path")
+        backend_name = _as_optional_str(arguments, "backend", "local")
+        max_rows = _as_int(arguments, "max_rows", 1_000)
+        if backend_name != "local":
+            return failure(
+                "experiment_summary",
+                code="backend_not_implemented",
+                message=f"Experiment summary backend {backend_name!r} is not implemented yet.",
+                exit_code=ExitCode.BACKEND_UNAVAILABLE,
+                details={"backend": backend_name},
+            )
+
+        result = summarize_experiments(path, max_rows=max_rows)
+    except ExperimentSummaryError as exc:
+        return failure(
+            "experiment_summary",
+            code="experiment_summary_error",
+            message=str(exc),
+            exit_code=ExitCode.TOOL_ERROR,
+        )
+    except ValueError as exc:
+        return failure(
+            "experiment_summary",
+            code="invalid_arguments",
+            message=str(exc),
+            exit_code=ExitCode.USAGE_ERROR,
+        )
+
+    return success(
+        "experiment_summary",
+        result,
+        metadata={"backend": "local"},
+    )
+
+
 def _not_implemented_handler(tool_name: str) -> ToolHandler:
     def handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
         backend = arguments.get("backend")
@@ -520,6 +558,7 @@ DOCS_BACKENDS = ("official_docs", "huggingface", "local")
 BENCHMARK_BACKENDS = ("local", "papers_with_code", "openml")
 RESEARCH_BRIEF_BACKENDS = ("local",)
 PROJECT_SCAN_BACKENDS = ("local",)
+EXPERIMENT_SUMMARY_BACKENDS = ("local",)
 
 _TOOLS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
@@ -708,6 +747,36 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             _mcp_example(
                 {"path": "data/", "max_benchmarks": 3},
                 "Build a research brief through MCP.",
+            ),
+        ),
+    ),
+    ToolDefinition(
+        name="experiment_summary",
+        description="Summarize existing local experiment ledgers and best recorded runs.",
+        read_only=True,
+        backends=EXPERIMENT_SUMMARY_BACKENDS,
+        input_schema=_object_schema(
+            {
+                "path": _string_schema("Local experiment ledger file or project directory."),
+                "backend": _backend_schema(EXPERIMENT_SUMMARY_BACKENDS),
+                "max_rows": _integer_schema(
+                    "Maximum ledger rows to scan.",
+                    minimum=1,
+                    maximum=100_000,
+                    default=1_000,
+                ),
+            },
+            required=("path",),
+        ),
+        handler=_experiment_summary_handler,
+        usage_examples=(
+            _cli_example(
+                "labmate experiment-summary results.tsv",
+                "Summarize existing experiment runs from a local ledger.",
+            ),
+            _mcp_example(
+                {"path": "results.tsv", "max_rows": 1000},
+                "Summarize experiment runs through MCP.",
             ),
         ),
     ),

@@ -53,6 +53,28 @@ def test_project_scan_command_returns_project_contract(tmp_path, capsys) -> None
     assert payload["result"]["recommended_next_commands"][1] == f"labmate research-brief {data}"
 
 
+def test_experiment_summary_command_returns_ledger_contract(tmp_path, capsys) -> None:
+    ledger = tmp_path / "results.tsv"
+    ledger.write_text(
+        (
+            "timestamp_utc\tcommit\texperiment\tmodel_family\tfeatures\tvalidation_strategy\t"
+            "metric\tscore\tscore_direction\tstatus\tartifacts\tnotes\n"
+            "2026-05-25T10:00:00Z\tabc123\tdummy\tdummy\tbase\tk_fold\t"
+            "rmse\t1.0\tminimize\tkeep\tmodel.pkl\tbaseline\n"
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(["experiment-summary", str(ledger)])
+    payload = _json_output(capsys)
+
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["tool"] == "experiment_summary"
+    assert payload["result"]["ledger"]["path"] == "results.tsv"
+    assert payload["result"]["best_run"]["experiment"] == "dummy"
+
+
 def test_research_brief_command_returns_workflow_contract(tmp_path, capsys) -> None:
     (tmp_path / "train.csv").write_text("id,feature,target\n1,10,0\n2,11,1\n", encoding="utf-8")
     (tmp_path / "test.csv").write_text("id,feature\n3,12\n", encoding="utf-8")

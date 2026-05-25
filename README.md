@@ -25,6 +25,7 @@ read-only research pack:
 - literature search
 - citation graph
 - dataset inspection
+- experiment summary
 - benchmark lookup
 - framework docs fetch
 - GitHub example discovery
@@ -41,6 +42,7 @@ From a checkout:
 uv sync
 uv run labmate tools
 uv run labmate project-scan /path/to/ml-repo
+uv run labmate experiment-summary /path/to/ml-repo
 uv run labmate research-brief /path/to/kaggle/data --max-benchmarks 3
 uv run labmate dataset-inspect /path/to/kaggle/data
 uv run labmate benchmark-lookup "tabular classification"
@@ -69,6 +71,9 @@ Working today:
 - `labmate project-scan <path>` scans an unknown ML repo for likely datasets,
   code entrypoints, dependency files, existing experiment ledgers, agent setup,
   and next Labmate commands.
+- `labmate experiment-summary <path>` summarizes existing `results.tsv`-style
+  experiment ledgers, including best run, latest run, metric direction, and
+  status counts.
 - `labmate research-brief <path>` creates a concise first-pass ML brief by
   combining local dataset inspection, rough task inference, local benchmark
   context, local metric hints from documentation files, target distribution,
@@ -107,6 +112,7 @@ A coding agent should use Labmate before editing model code:
 
 ```bash
 uv run labmate project-scan .
+uv run labmate experiment-summary .
 uv run labmate research-brief data/ --max-benchmarks 3
 uv run labmate dataset-inspect data/
 uv run labmate benchmark-lookup "tabular classification auc"

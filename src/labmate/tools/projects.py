@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import csv
 import shlex
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+
+from labmate.tools.experiments import experiment_file_kind, summarize_ledger_table
 
 DATASET_SUFFIXES = {".csv", ".tsv"}
 ARCHIVE_SUFFIXES = {".zip"}
@@ -39,18 +40,6 @@ AGENT_FILES = {
     "program.md": "labmate_program",
     ".mcp.json": "mcp_config",
 }
-EXPERIMENT_FILES = {
-    "experiment-log.md": "experiment_log",
-    "experiment_log.md": "experiment_log",
-    "experiment_log.tsv": "experiment_ledger",
-    "experiments.csv": "experiment_ledger",
-    "experiments.tsv": "experiment_ledger",
-    "results.csv": "experiment_ledger",
-    "results.tsv": "experiment_ledger",
-    "runs.csv": "experiment_ledger",
-    "runs.tsv": "experiment_ledger",
-}
-MAX_LEDGER_ROWS_TO_COUNT = 1_000
 CONTEXT_STEMS = {
     "data_description",
     "description",
@@ -187,7 +176,7 @@ def _classify_file(root: Path, file_path: Path, state: dict[str, Any]) -> None:
         state["dependency_files"].append(file_path)
     if name in AGENT_FILES or _is_agent_config(file_path, root):
         state["agent_files"].append(file_path)
-    if _experiment_file_kind(file_path):
+    if experiment_file_kind(file_path):
         state["experiment_files"].append(file_path)
 
 
@@ -396,59 +385,13 @@ def _experiment_file_summaries(root: Path, files: list[Path]) -> list[dict[str, 
 def _experiment_file_summary(root: Path, file_path: Path) -> dict[str, Any]:
     summary: dict[str, Any] = {
         "path": _relative_path(root, file_path),
-        "kind": _experiment_file_kind(file_path),
+        "kind": experiment_file_kind(file_path),
     }
     if file_path.suffix.lower() in {".csv", ".tsv"}:
-        summary.update(_ledger_table_summary(file_path))
+        summary.update(summarize_ledger_table(file_path))
     else:
         summary["read_status"] = "metadata_only"
     return summary
-
-
-def _experiment_file_kind(path: Path) -> str | None:
-    return EXPERIMENT_FILES.get(path.name.lower())
-
-
-def _ledger_table_summary(path: Path) -> dict[str, Any]:
-    delimiter = "\t" if path.suffix.lower() == ".tsv" else ","
-    try:
-        with path.open(newline="", encoding="utf-8") as handle:
-            reader = csv.reader(handle, delimiter=delimiter)
-            try:
-                columns = next(reader)
-            except StopIteration:
-                return {
-                    "format": path.suffix.lower().removeprefix("."),
-                    "columns": [],
-                    "completed_run_count": 0,
-                    "row_count_status": "exact",
-                    "read_status": "empty",
-                }
-
-            completed_run_count = 0
-            row_count_status = "exact"
-            for _row in reader:
-                if completed_run_count >= MAX_LEDGER_ROWS_TO_COUNT:
-                    row_count_status = "bounded"
-                    break
-                completed_run_count += 1
-    except (OSError, UnicodeDecodeError, csv.Error) as exc:
-        return {
-            "format": path.suffix.lower().removeprefix("."),
-            "columns": [],
-            "completed_run_count": None,
-            "row_count_status": "unknown",
-            "read_status": "unreadable",
-            "error": str(exc),
-        }
-
-    return {
-        "format": path.suffix.lower().removeprefix("."),
-        "columns": columns,
-        "completed_run_count": completed_run_count,
-        "row_count_status": row_count_status,
-        "read_status": "ok",
-    }
 
 
 def _experiment_tracking_summary(experiment_files: list[dict[str, Any]]) -> dict[str, Any]:

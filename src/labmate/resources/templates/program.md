@@ -23,6 +23,10 @@ Run the relevant Labmate commands before editing model code.
   - Capture: likely dataset directories, code entrypoints, dependency files,
     existing experiment ledgers, existing agent setup, and recommended next
     Labmate command.
+- Existing experiments:
+  - Command: `labmate experiment-summary <project-root-or-results.tsv>`
+  - Capture: best run, latest run, metric direction, status counts, and ledger
+    warnings.
 - First-pass brief:
   - Command: `labmate research-brief <dataset-path>`
   - Capture: inferred task, dataset warnings, benchmark URLs, recommended next

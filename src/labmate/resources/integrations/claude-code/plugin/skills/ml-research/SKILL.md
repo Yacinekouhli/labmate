@@ -10,6 +10,7 @@ Use Labmate to verify research evidence before ML implementation work.
 2. Use the `ml-researcher` agent for read-only evidence gathering.
 3. Run focused Labmate MCP or CLI tools:
    - `labmate project-scan <project-root>`
+   - `labmate experiment-summary <project-root-or-results.tsv>`
    - `labmate research-brief <dataset-path>`
    - `labmate dataset-inspect <dataset-path>`
    - `labmate benchmark-lookup "<task or dataset>"`

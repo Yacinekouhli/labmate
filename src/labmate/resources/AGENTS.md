@@ -24,6 +24,7 @@ When `program.md` asks for evidence, gather it before editing code:
 ```bash
 labmate tools
 labmate project-scan <project-root>
+labmate experiment-summary <project-root-or-results.tsv>
 labmate research-brief <dataset-path>
 labmate dataset-inspect <dataset-path>
 labmate benchmark-lookup "<task or dataset>"
