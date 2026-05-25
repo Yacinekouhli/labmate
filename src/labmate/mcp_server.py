@@ -164,10 +164,12 @@ def get_mcp_prompt(name: str, arguments: Mapping[str, str] | None) -> types.GetP
 3. Inspect the dataset and results ledger reported by Labmate before editing model code.
 4. Use or delegate to the `kaggle-researcher` subagent for competition rules, metric,
    leakage risks, validation strategy, baseline plan, prior submissions, and next experiments.
-5. Implement the smallest reproducible baseline only after target, metric, split, and submission
-   format are verified.
-6. Log every experiment in `results.tsv`.
-7. Do not submit to Kaggle unless the user explicitly approves the exact submission file and
+5. If data is ready, call `kaggle_baseline` to create and log a validated constant
+   baseline before writing model code.
+6. Implement the smallest reproducible model baseline only after target, metric, split, and
+   submission format are verified.
+7. Log every experiment in `results.tsv`.
+8. Do not submit to Kaggle unless the user explicitly approves the exact submission file and
    message."""
 
     return types.GetPromptResult(

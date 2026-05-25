@@ -4,8 +4,10 @@ import pytest
 
 from labmate.tools.kaggle import (
     KaggleWorkflowError,
+    create_kaggle_baseline,
     normalize_competition_slug,
     start_kaggle_competition,
+    validate_kaggle_submission,
 )
 
 
@@ -103,6 +105,7 @@ def test_kaggle_start_inspects_existing_kaggle_style_data(tmp_path) -> None:
     ]
     assert result["agent_handoff"]["claude_project_command"] == "/kagglethis titanic"
     assert result["next_actions"][1]["action"] == "inspect_data"
+    assert result["next_actions"][3]["action"] == "create_constant_baseline"
 
 
 def test_kaggle_start_is_idempotent_for_user_files(tmp_path) -> None:
@@ -116,3 +119,55 @@ def test_kaggle_start_is_idempotent_for_user_files(tmp_path) -> None:
     assert file_actions["results.tsv"] == "skipped"
     assert file_actions["program.md"] == "skipped"
     assert file_actions["reports/competition_brief.md"] == "updated"
+
+
+def test_kaggle_baseline_writes_submission_manifest_and_ledger(tmp_path) -> None:
+    workspace = tmp_path / "titanic"
+    _write_titanic_data(workspace)
+    start_kaggle_competition("titanic", workspace=workspace, download=False)
+
+    result = create_kaggle_baseline(workspace, run_name="dummy", strategy="auto")
+
+    assert result["kind"] == "kaggle_baseline_run"
+    assert result["competition"]["slug"] == "titanic"
+    assert result["artifacts"]["submission_path"] == "submissions/dummy.csv"
+    assert result["artifacts"]["manifest_path"] == "runs/dummy/manifest.json"
+    assert result["prediction"]["fill_values"] == {"Survived": "1"}
+    assert result["validation"]["status"] == "ok"
+    assert result["ledger"]["appended"] is True
+    assert result["ledger"]["row"]["experiment"] == "dummy"
+    assert result["ledger"]["row"]["status"] == "submission_ready"
+    assert (workspace / "submissions" / "dummy.csv").read_text(encoding="utf-8").splitlines() == [
+        "PassengerId,Survived",
+        "4,1",
+        "5,1",
+    ]
+    assert (workspace / "runs" / "dummy" / "manifest.json").is_file()
+    assert "dummy" in (workspace / "results.tsv").read_text(encoding="utf-8")
+
+
+def test_kaggle_baseline_refuses_to_overwrite_existing_submission(tmp_path) -> None:
+    workspace = tmp_path / "titanic"
+    _write_titanic_data(workspace)
+    start_kaggle_competition("titanic", workspace=workspace, download=False)
+    create_kaggle_baseline(workspace, run_name="dummy")
+
+    with pytest.raises(KaggleWorkflowError) as exc_info:
+        create_kaggle_baseline(workspace, run_name="dummy")
+
+    assert exc_info.value.code == "artifact_exists"
+
+
+def test_validate_kaggle_submission_reports_schema_errors(tmp_path) -> None:
+    workspace = tmp_path / "titanic"
+    _write_titanic_data(workspace)
+    candidate = workspace / "submissions" / "bad.csv"
+    candidate.parent.mkdir()
+    candidate.write_text("PassengerId,wrong\n4,0\n", encoding="utf-8")
+
+    result = validate_kaggle_submission(candidate, workspace=workspace)
+
+    assert result["status"] == "failed"
+    assert result["schema"]["columns_match"] is False
+    assert result["rows"]["row_counts_match"] is False
+    assert result["errors"]

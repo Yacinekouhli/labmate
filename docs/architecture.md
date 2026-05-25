@@ -43,9 +43,10 @@ tools, but they still enter through the registry and return the same
 should expose those as structured actions with tool names, arguments, purpose,
 and evidence expectations, not only as shell strings.
 
-Mutating setup tools, such as `kaggle_start`, also enter through the registry.
-They must be explicit about risk, write only local workspace artifacts, return
-the exact files touched, and keep irreversible or remote actions out of band.
+Mutating setup tools, such as `kaggle_start` and `kaggle_baseline`, also enter
+through the registry. They must be explicit about risk, write only local
+workspace artifacts, return the exact files touched, and keep irreversible or
+remote actions out of band.
 
 ## MCP Surface
 
@@ -62,8 +63,8 @@ aligned with the same registry used by CLI commands and tests.
 
 The MCP adapter also exposes prompts for host-native slash-command UX. The
 first prompt is `kagglethis`, which tells Claude Code or another MCP host how to
-call `kaggle_start`, when to use Kaggle MCP tools, and where submission approval
-is required.
+call `kaggle_start`, when to create a validated `kaggle_baseline`, when to use
+Kaggle MCP tools, and where submission approval is required.
 
 ## CLI Contracts
 
@@ -114,7 +115,7 @@ Generic wrapper:
 
 ## Safety
 
-Most research tools are read-only. Local workspace bootstrap is allowed when it
-is explicit and auditable. Remote or irreversible operations, especially Kaggle
-submissions, need separate approval requirements and audit summaries before they
-run.
+Most research tools are read-only. Local workspace bootstrap and local baseline
+artifact generation are allowed when they are explicit and auditable. Remote or
+irreversible operations, especially Kaggle submissions, need separate approval
+requirements and audit summaries before they run.

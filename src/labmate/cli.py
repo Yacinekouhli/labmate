@@ -187,6 +187,44 @@ def _build_parser() -> argparse.ArgumentParser:
     kaggle_start.add_argument("--sample-size", type=int, default=3)
     kaggle_start.add_argument("--max-profile-rows", type=int, default=250_000)
 
+    kaggle_baseline = kaggle_subparsers.add_parser(
+        "baseline",
+        help="Create and log a constant Kaggle baseline submission.",
+    )
+    kaggle_baseline.add_argument("workspace", help="Local Kaggle workspace.")
+    kaggle_baseline.add_argument("--competition", help="Optional Kaggle competition slug.")
+    kaggle_baseline.add_argument(
+        "--data-dir",
+        default="data",
+        help="Workspace-relative data directory. Defaults to data/.",
+    )
+    kaggle_baseline.add_argument(
+        "--strategy",
+        default="auto",
+        choices=["auto", "sample_default", "target_mean", "target_mode", "zero"],
+        help="Constant prediction strategy.",
+    )
+    kaggle_baseline.add_argument("--run-name", help="Optional run/artifact name.")
+    kaggle_baseline.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite an existing submission artifact with the same run name.",
+    )
+    kaggle_baseline.add_argument("--sample-size", type=int, default=3)
+    kaggle_baseline.add_argument("--max-profile-rows", type=int, default=250_000)
+
+    kaggle_validate = kaggle_subparsers.add_parser(
+        "validate-submission",
+        help="Validate a submission against the local sample submission.",
+    )
+    kaggle_validate.add_argument("submission", help="Candidate submission path.")
+    kaggle_validate.add_argument("--workspace", required=True, help="Local Kaggle workspace.")
+    kaggle_validate.add_argument(
+        "--data-dir",
+        default="data",
+        help="Workspace-relative data directory. Defaults to data/.",
+    )
+
     init = subparsers.add_parser("init", help="Plan or apply agent-harness setup.")
     init.add_argument(
         "harness",
@@ -328,6 +366,35 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.workspace is not None:
             payload["workspace"] = args.workspace
         return _print_response(call_tool("kaggle_start", payload))
+
+    if args.command == "kaggle" and args.kaggle_command == "baseline":
+        payload = {
+            "workspace": args.workspace,
+            "backend": "local",
+            "data_dir": args.data_dir,
+            "strategy": args.strategy,
+            "overwrite": args.overwrite,
+            "sample_size": args.sample_size,
+            "max_profile_rows": args.max_profile_rows,
+        }
+        if args.competition is not None:
+            payload["competition"] = args.competition
+        if args.run_name is not None:
+            payload["run_name"] = args.run_name
+        return _print_response(call_tool("kaggle_baseline", payload))
+
+    if args.command == "kaggle" and args.kaggle_command == "validate-submission":
+        return _print_response(
+            call_tool(
+                "kaggle_validate_submission",
+                {
+                    "submission": args.submission,
+                    "workspace": args.workspace,
+                    "backend": "local",
+                    "data_dir": args.data_dir,
+                },
+            )
+        )
 
     if args.command == "init":
         try:

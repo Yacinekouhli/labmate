@@ -14,6 +14,8 @@ verify the competition setup and return a concise, evidence-backed plan.
 Start with:
 
 - `labmate kaggle start <competition> --workspace <workspace> --no-download`
+- `labmate kaggle baseline <workspace> --run-name constant_baseline`
+- `labmate kaggle validate-submission submissions/constant_baseline.csv --workspace <workspace>`
 - `labmate dataset-inspect <workspace>/data`
 - `labmate experiment-summary <workspace>/results.tsv`
 - `labmate research-brief <workspace>/data`
@@ -33,6 +35,7 @@ Return:
 - data availability and schema summary
 - target, metric, split, leakage, and sample-submission findings
 - current best run or missing-ledger status
-- first baseline to implement
+- constant baseline artifact and validation status, or the blocker preventing it
+- first model baseline to implement
 - next 3 experiments ranked by expected learning value
 - exact blocker if data, auth, rules, or tooling prevents progress

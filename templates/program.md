@@ -22,6 +22,13 @@ Run the relevant Labmate commands before editing model code.
   - Command: `labmate kaggle start <competition-url-or-slug> --workspace <workspace>`
   - Capture: competition slug, workspace paths, data/download status, agent
     handoff, submission approval policy, and next actions.
+- Kaggle baseline:
+  - Command: `labmate kaggle baseline <workspace> --run-name constant_baseline`
+  - Capture: submission path, validation status, prediction fill values,
+    manifest path, and appended ledger row.
+- Submission validation:
+  - Command: `labmate kaggle validate-submission <submission> --workspace <workspace>`
+  - Capture: expected/actual columns, row counts, ID alignment, and errors.
 - Project scan:
   - Command: `labmate project-scan <project-root>`
   - Capture: likely dataset directories, code entrypoints, dependency files,

@@ -15,6 +15,8 @@ Workflow:
 2. Identify the research questions blocking implementation.
 3. Run focused Labmate tools:
    - `labmate kaggle start <competition-url-or-slug> --workspace <workspace>`
+   - `labmate kaggle baseline <workspace> --run-name constant_baseline`
+   - `labmate kaggle validate-submission submissions/constant_baseline.csv --workspace <workspace>`
    - `labmate project-scan <project-root>`
    - `labmate experiment-summary <project-root-or-results.tsv>`
    - `labmate research-brief <dataset-path>`
@@ -23,8 +25,9 @@ Workflow:
    - `labmate literature-search "<method or task query>" --max-results 5`
    - `labmate docs-fetch "<framework API or concept>" --max-results 3`
    - `labmate github-find-examples "<implementation pattern>" --max-results 3`
-4. For Kaggle work, use `kaggle_researcher` before editing model code and do
-   not submit unless the user explicitly approves the exact file and message.
+4. For Kaggle work, use `kaggle_researcher` before editing model code, create a
+   validated constant baseline when data is ready, and do not submit unless the
+   user explicitly approves the exact file and message.
 5. Summarize command outputs, URLs, dataset risks, metric/protocol assumptions,
    prior experiments, and the experiment-tracking plan.
 6. Only recommend implementation steps that are grounded in retrieved evidence.

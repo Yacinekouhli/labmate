@@ -12,7 +12,13 @@ from labmate.tools.datasets import DatasetInspectionError, inspect_local_dataset
 from labmate.tools.docs import OfficialDocsBackend, fetch_docs
 from labmate.tools.experiments import ExperimentSummaryError, summarize_experiments
 from labmate.tools.github import GitHubRepositorySearchBackend, find_github_examples
-from labmate.tools.kaggle import KaggleWorkflowError, start_kaggle_competition
+from labmate.tools.kaggle import (
+    BASELINE_STRATEGIES,
+    KaggleWorkflowError,
+    create_kaggle_baseline,
+    start_kaggle_competition,
+    validate_kaggle_submission,
+)
 from labmate.tools.literature import (
     ArxivSearchBackend,
     citation_graph,
@@ -604,6 +610,104 @@ def _kaggle_start_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
     )
 
 
+def _kaggle_baseline_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
+    try:
+        workspace = _as_str(arguments, "workspace")
+        backend_name = _as_optional_str(arguments, "backend", "local")
+        competition = _as_maybe_str(arguments, "competition")
+        data_dir = _as_optional_str(arguments, "data_dir", "data")
+        strategy = _as_optional_str(arguments, "strategy", "auto")
+        run_name = _as_maybe_str(arguments, "run_name")
+        overwrite = _as_bool(arguments, "overwrite", False)
+        sample_size = _as_int(arguments, "sample_size", 3)
+        max_profile_rows = _as_int(arguments, "max_profile_rows", 250_000)
+        if backend_name != "local":
+            return failure(
+                "kaggle_baseline",
+                code="backend_not_implemented",
+                message=f"Kaggle baseline backend {backend_name!r} is not implemented yet.",
+                exit_code=ExitCode.BACKEND_UNAVAILABLE,
+                details={"backend": backend_name},
+            )
+
+        result = create_kaggle_baseline(
+            workspace,
+            competition=competition,
+            data_dir=data_dir,
+            strategy=strategy,
+            run_name=run_name,
+            overwrite=overwrite,
+            sample_size=sample_size,
+            max_profile_rows=max_profile_rows,
+        )
+    except KaggleWorkflowError as exc:
+        return failure(
+            "kaggle_baseline",
+            code=exc.code,
+            message=str(exc),
+            exit_code=exc.exit_code,
+            retryable=exc.retryable,
+            details=exc.details,
+        )
+    except ValueError as exc:
+        return failure(
+            "kaggle_baseline",
+            code="invalid_arguments",
+            message=str(exc),
+            exit_code=ExitCode.USAGE_ERROR,
+        )
+
+    return success(
+        "kaggle_baseline",
+        result,
+        metadata={"backend": "local"},
+    )
+
+
+def _kaggle_validate_submission_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
+    try:
+        submission = _as_str(arguments, "submission")
+        workspace = _as_str(arguments, "workspace")
+        backend_name = _as_optional_str(arguments, "backend", "local")
+        data_dir = _as_optional_str(arguments, "data_dir", "data")
+        if backend_name != "local":
+            return failure(
+                "kaggle_validate_submission",
+                code="backend_not_implemented",
+                message=(f"Kaggle validation backend {backend_name!r} is not implemented yet."),
+                exit_code=ExitCode.BACKEND_UNAVAILABLE,
+                details={"backend": backend_name},
+            )
+
+        result = validate_kaggle_submission(
+            submission,
+            workspace=workspace,
+            data_dir=data_dir,
+        )
+    except KaggleWorkflowError as exc:
+        return failure(
+            "kaggle_validate_submission",
+            code=exc.code,
+            message=str(exc),
+            exit_code=exc.exit_code,
+            retryable=exc.retryable,
+            details=exc.details,
+        )
+    except ValueError as exc:
+        return failure(
+            "kaggle_validate_submission",
+            code="invalid_arguments",
+            message=str(exc),
+            exit_code=ExitCode.USAGE_ERROR,
+        )
+
+    return success(
+        "kaggle_validate_submission",
+        result,
+        metadata={"backend": "local"},
+    )
+
+
 def _not_implemented_handler(tool_name: str) -> ToolHandler:
     def handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
         backend = arguments.get("backend")
@@ -630,6 +734,8 @@ RESEARCH_BRIEF_BACKENDS = ("local",)
 PROJECT_SCAN_BACKENDS = ("local",)
 EXPERIMENT_SUMMARY_BACKENDS = ("local",)
 KAGGLE_START_BACKENDS = ("local",)
+KAGGLE_BASELINE_BACKENDS = ("local",)
+KAGGLE_VALIDATE_SUBMISSION_BACKENDS = ("local",)
 
 _TOOLS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
@@ -903,6 +1009,87 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             ),
         ),
         risk="mutating",
+    ),
+    ToolDefinition(
+        name="kaggle_baseline",
+        description=(
+            "Create a constant Kaggle baseline submission, validate it, and append a "
+            "results.tsv ledger row."
+        ),
+        read_only=False,
+        backends=KAGGLE_BASELINE_BACKENDS,
+        input_schema=_object_schema(
+            {
+                "workspace": _string_schema("Local Kaggle workspace path."),
+                "backend": _backend_schema(KAGGLE_BASELINE_BACKENDS),
+                "competition": _string_schema(
+                    "Optional Kaggle competition URL or slug override.",
+                ),
+                "data_dir": _string_schema("Workspace-relative data directory."),
+                "strategy": {
+                    "type": "string",
+                    "enum": sorted(BASELINE_STRATEGIES),
+                    "default": "auto",
+                    "description": "Constant prediction strategy.",
+                },
+                "run_name": _string_schema("Optional run/artifact name."),
+                "overwrite": _boolean_schema(
+                    "Whether to overwrite an existing submission artifact.",
+                    default=False,
+                ),
+                "sample_size": _integer_schema(
+                    "Number of sample rows to inspect per file.",
+                    minimum=0,
+                    maximum=50,
+                    default=3,
+                ),
+                "max_profile_rows": _integer_schema(
+                    "Maximum rows to profile per tabular file.",
+                    minimum=1,
+                    default=250_000,
+                ),
+            },
+            required=("workspace",),
+        ),
+        handler=_kaggle_baseline_handler,
+        usage_examples=(
+            _cli_example(
+                "labmate kaggle baseline ./titanic --run-name dummy_baseline",
+                "Create and log a sample-submission-compatible constant baseline.",
+            ),
+            _mcp_example(
+                {"workspace": "./titanic", "run_name": "dummy_baseline"},
+                "Create a baseline submission artifact through MCP.",
+            ),
+        ),
+        risk="mutating",
+    ),
+    ToolDefinition(
+        name="kaggle_validate_submission",
+        description="Validate a Kaggle submission file against the local sample submission.",
+        read_only=True,
+        backends=KAGGLE_VALIDATE_SUBMISSION_BACKENDS,
+        input_schema=_object_schema(
+            {
+                "submission": _string_schema("Candidate submission path."),
+                "workspace": _string_schema("Local Kaggle workspace path."),
+                "backend": _backend_schema(KAGGLE_VALIDATE_SUBMISSION_BACKENDS),
+                "data_dir": _string_schema("Workspace-relative data directory."),
+            },
+            required=("submission", "workspace"),
+        ),
+        handler=_kaggle_validate_submission_handler,
+        usage_examples=(
+            _cli_example(
+                "labmate kaggle validate-submission submissions/dummy_baseline.csv "
+                "--workspace ./titanic",
+                "Validate columns, rows, and IDs before asking to submit.",
+            ),
+            _mcp_example(
+                {"workspace": "./titanic", "submission": "submissions/dummy_baseline.csv"},
+                "Validate a submission artifact through MCP.",
+            ),
+        ),
     ),
     ToolDefinition(
         name="benchmark_lookup",

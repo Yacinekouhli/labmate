@@ -49,6 +49,8 @@ The first release should include:
 - experiment summary over existing local run ledgers
 - safe local creation of `program.md`, `results.tsv`, workspace directories, and
   generated competition brief for Kaggle work
+- constant Kaggle baseline generation from `sample_submission`, with submission
+  validation, run manifest, and `results.tsv` logging
 - literature search with arXiv-backed results
 - first-pass research brief over local datasets, benchmark context, and ordered
   follow-up research actions, including provided validation/split-column
@@ -78,3 +80,5 @@ The first release should include:
   and `kaggle-researcher`.
 - Kaggle submission remains separated from setup/research and requires explicit
   user approval for the exact file and message.
+- A first constant baseline can be created, validated, and logged before a host
+  agent edits model code or asks to submit.

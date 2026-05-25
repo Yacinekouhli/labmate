@@ -196,6 +196,52 @@ def test_kaggle_start_can_be_called_through_mcp_helper(tmp_path) -> None:
     assert result.structuredContent["result"]["download"]["status"] == "skipped"
 
 
+def test_kaggle_baseline_can_be_called_through_mcp_helper(tmp_path) -> None:
+    workspace = tmp_path / "titanic"
+    data = workspace / "data"
+    data.mkdir(parents=True)
+    (data / "train.csv").write_text("id,target\n1,0\n2,1\n3,1\n", encoding="utf-8")
+    (data / "test.csv").write_text("id\n4\n5\n", encoding="utf-8")
+    (data / "sample_submission.csv").write_text("id,target\n4,0\n5,0\n", encoding="utf-8")
+    call_mcp_tool(
+        "kaggle_start",
+        {"competition": "titanic", "workspace": str(workspace), "download": False},
+    )
+
+    result = call_mcp_tool(
+        "kaggle_baseline",
+        {"workspace": str(workspace), "run_name": "dummy"},
+    )
+
+    assert result.isError is False
+    assert result.structuredContent is not None
+    assert result.structuredContent["tool"] == "kaggle_baseline"
+    assert result.structuredContent["result"]["validation"]["status"] == "ok"
+    assert (workspace / "submissions" / "dummy.csv").is_file()
+
+
+def test_kaggle_validate_submission_can_be_called_through_mcp_helper(tmp_path) -> None:
+    workspace = tmp_path / "titanic"
+    data = workspace / "data"
+    data.mkdir(parents=True)
+    (data / "train.csv").write_text("id,target\n1,0\n", encoding="utf-8")
+    (data / "test.csv").write_text("id\n2\n", encoding="utf-8")
+    (data / "sample_submission.csv").write_text("id,target\n2,0\n", encoding="utf-8")
+    submission = workspace / "submissions" / "candidate.csv"
+    submission.parent.mkdir()
+    submission.write_text("id,target\n2,1\n", encoding="utf-8")
+
+    result = call_mcp_tool(
+        "kaggle_validate_submission",
+        {"workspace": str(workspace), "submission": "submissions/candidate.csv"},
+    )
+
+    assert result.isError is False
+    assert result.structuredContent is not None
+    assert result.structuredContent["tool"] == "kaggle_validate_submission"
+    assert result.structuredContent["result"]["status"] == "ok"
+
+
 def test_experiment_summary_mcp_missing_path_returns_contract_failure() -> None:
     result = call_mcp_tool("experiment_summary", {})
 

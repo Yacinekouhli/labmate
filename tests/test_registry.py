@@ -24,11 +24,15 @@ def test_registry_contains_initial_tools() -> None:
         "docs_fetch",
         "github_find_examples",
         "kaggle_start",
+        "kaggle_baseline",
+        "kaggle_validate_submission",
     }
 
     kaggle_start = get_tool("kaggle_start")
     assert kaggle_start.read_only is False
     assert kaggle_start.risk == "mutating"
+    assert get_tool("kaggle_baseline").risk == "mutating"
+    assert get_tool("kaggle_validate_submission").read_only is True
 
 
 def test_get_tool_returns_named_tool() -> None:

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import re
 import shutil
 import subprocess
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +24,7 @@ GENERATED_MARKER = "<!-- labmate:generated -->"
 DEFAULT_WORKSPACE_DIRS = ("data", "runs", "submissions", "reports", ".labmate")
 MAX_FILE_LIST = 200
 MAX_OUTPUT_CHARS = 2_000
+BASELINE_STRATEGIES = {"auto", "target_mode", "target_mean", "sample_default", "zero"}
 
 
 class KaggleWorkflowError(ValueError):
@@ -187,6 +190,264 @@ def start_kaggle_competition(
     }
 
 
+def create_kaggle_baseline(
+    workspace: str | Path,
+    *,
+    competition: str | None = None,
+    data_dir: str | Path = "data",
+    strategy: str = "auto",
+    run_name: str | None = None,
+    overwrite: bool = False,
+    sample_size: int = 3,
+    max_profile_rows: int = 250_000,
+) -> dict[str, Any]:
+    """Create a sample-submission-compatible constant baseline and log it."""
+
+    if strategy not in BASELINE_STRATEGIES:
+        raise KaggleWorkflowError(
+            f"Unsupported baseline strategy: {strategy}",
+            code="invalid_arguments",
+            exit_code=ExitCode.USAGE_ERROR,
+            details={"strategy": strategy, "supported": sorted(BASELINE_STRATEGIES)},
+        )
+
+    workspace_path = _resolve_workspace(workspace)
+    data_path = _resolve_child_path(workspace_path, data_dir)
+    if not data_path.is_dir():
+        raise KaggleWorkflowError(
+            "baseline generation requires an extracted local data directory",
+            code="data_not_ready",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"data_dir": _relative_to(workspace_path, data_path)},
+        )
+
+    workspace_slug = (
+        normalize_competition_slug(competition)
+        if competition
+        else _competition_slug_from_workspace(workspace_path)
+    )
+    run_id = _run_id(run_name)
+    submission_path = workspace_path / "submissions" / f"{run_id}.csv"
+    manifest_path = workspace_path / "runs" / run_id / "manifest.json"
+    if submission_path.exists() and not overwrite:
+        raise KaggleWorkflowError(
+            "submission file already exists; pass overwrite=true to replace it",
+            code="artifact_exists",
+            exit_code=ExitCode.USAGE_ERROR,
+            details={"submission_path": _relative_to(workspace_path, submission_path)},
+        )
+
+    data_result = _inspect_available_data(
+        workspace_path=workspace_path,
+        data_path=data_path,
+        sample_size=sample_size,
+        max_profile_rows=max_profile_rows,
+    )
+    if data_result["status"] != "inspected":
+        raise KaggleWorkflowError(
+            "baseline generation requires inspectable train/test/sample_submission files",
+            code="data_not_ready",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"data": data_result},
+        )
+
+    inspection = data_result["inspection"]
+    if not isinstance(inspection, dict) or inspection.get("kind") != "local_dataset_directory":
+        raise KaggleWorkflowError(
+            "baseline generation currently requires extracted top-level CSV/TSV files",
+            code="unsupported_dataset_layout",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"inspected_path": data_result.get("inspected_path")},
+        )
+
+    baseline = _baseline_predictions(
+        workspace_path=workspace_path,
+        data_path=data_path,
+        inspection=inspection,
+        strategy=strategy,
+    )
+    _write_submission(
+        submission_path,
+        fieldnames=baseline["fieldnames"],
+        rows=baseline["rows"],
+    )
+    validation = validate_kaggle_submission(
+        submission_path,
+        workspace=workspace_path,
+        data_dir=data_dir,
+    )
+    research_brief = data_result["research_brief"]
+    manifest = _baseline_manifest(
+        workspace_path=workspace_path,
+        competition=workspace_slug,
+        run_id=run_id,
+        strategy=strategy,
+        baseline=baseline,
+        submission_path=submission_path,
+        validation=validation,
+        research_brief=research_brief,
+    )
+    _write_json(manifest_path, manifest)
+    ledger_row = _baseline_ledger_row(
+        workspace_path=workspace_path,
+        run_id=run_id,
+        baseline=baseline,
+        submission_path=submission_path,
+        manifest_path=manifest_path,
+        research_brief=research_brief,
+    )
+    ledger_result = _append_ledger_row(workspace_path / "results.tsv", ledger_row)
+
+    return {
+        "kind": "kaggle_baseline_run",
+        "competition": {
+            "slug": workspace_slug,
+            "url": f"https://www.kaggle.com/competitions/{workspace_slug}"
+            if workspace_slug
+            else None,
+        },
+        "workspace": {
+            "path": str(workspace_path),
+            "data_dir": _relative_to(workspace_path, data_path),
+        },
+        "run": {
+            "name": run_id,
+            "strategy": strategy,
+            "model_family": "constant_baseline",
+            "created_at_utc": manifest["created_at_utc"],
+        },
+        "prediction": {
+            "output_columns": baseline["output_columns"],
+            "fill_values": baseline["fill_values"],
+            "source": baseline["source"],
+            "row_count": len(baseline["rows"]),
+        },
+        "artifacts": {
+            "submission_path": _relative_to(workspace_path, submission_path),
+            "manifest_path": _relative_to(workspace_path, manifest_path),
+            "ledger_path": "results.tsv",
+        },
+        "validation": validation,
+        "ledger": ledger_result,
+        "submission_policy": _submission_policy(),
+        "next_actions": [
+            {
+                "priority": 1,
+                "action": "inspect_baseline_submission",
+                "command": (
+                    "labmate kaggle validate-submission "
+                    f"{_relative_to(workspace_path, submission_path)} --workspace {workspace_path}"
+                ),
+                "purpose": "Confirm row count, columns, and IDs before any submit attempt.",
+            },
+            {
+                "priority": 2,
+                "action": "implement_model_baseline",
+                "purpose": (
+                    "Replace the constant baseline with a simple validated model and compare "
+                    "against this logged floor."
+                ),
+            },
+            {
+                "priority": 99,
+                "action": "submit",
+                "approval": "required",
+                "purpose": "Submit only after explicit user approval of file and message.",
+            },
+        ],
+        "warnings": list(validation.get("warnings", [])),
+    }
+
+
+def validate_kaggle_submission(
+    submission: str | Path,
+    *,
+    workspace: str | Path,
+    data_dir: str | Path = "data",
+) -> dict[str, Any]:
+    """Validate a candidate submission against the local sample submission."""
+
+    workspace_path = _resolve_workspace(workspace)
+    data_path = _resolve_child_path(workspace_path, data_dir)
+    submission_path = _resolve_submission_path(workspace_path, submission)
+    if not submission_path.is_file():
+        raise KaggleWorkflowError(
+            "submission file does not exist",
+            code="submission_not_found",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"submission": str(submission)},
+        )
+
+    inspection = inspect_local_dataset(data_path, sample_size=1, max_profile_rows=1_000)
+    if inspection.get("kind") != "local_dataset_directory":
+        raise KaggleWorkflowError(
+            "submission validation requires extracted top-level data files",
+            code="unsupported_dataset_layout",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"data_dir": _relative_to(workspace_path, data_path)},
+        )
+
+    relations = inspection.get("relations", {})
+    sample_name = relations.get("sample_submission_file")
+    if not isinstance(sample_name, str):
+        raise KaggleWorkflowError(
+            "sample submission file was not detected",
+            code="sample_submission_not_found",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"data_dir": _relative_to(workspace_path, data_path)},
+        )
+
+    sample_path = data_path / sample_name
+    sample_rows, sample_columns = _read_tabular_rows(sample_path)
+    candidate_rows, candidate_columns = _read_tabular_rows(submission_path)
+    common_id_columns = relations.get("sample_submission_alignment", {}).get(
+        "common_id_columns",
+        [],
+    )
+    id_columns = [str(column) for column in common_id_columns] if common_id_columns else []
+    errors: list[str] = []
+    warnings: list[str] = []
+    columns_match = sample_columns == candidate_columns
+    row_counts_match = len(sample_rows) == len(candidate_rows)
+    ids_match = _ids_match(sample_rows, candidate_rows, id_columns)
+
+    if not columns_match:
+        errors.append("Submission columns do not exactly match sample submission columns.")
+    if not row_counts_match:
+        errors.append("Submission row count does not match sample submission row count.")
+    if id_columns and not ids_match:
+        errors.append("Submission ID columns do not match sample submission order.")
+    if not id_columns:
+        warnings.append(
+            "No shared ID columns were detected; validation used columns and rows only."
+        )
+
+    return {
+        "kind": "kaggle_submission_validation",
+        "status": "ok" if not errors else "failed",
+        "workspace": str(workspace_path),
+        "submission_path": _relative_to(workspace_path, submission_path),
+        "sample_submission_path": _relative_to(workspace_path, sample_path),
+        "schema": {
+            "expected_columns": sample_columns,
+            "actual_columns": candidate_columns,
+            "columns_match": columns_match,
+        },
+        "rows": {
+            "expected_count": len(sample_rows),
+            "actual_count": len(candidate_rows),
+            "row_counts_match": row_counts_match,
+        },
+        "id_alignment": {
+            "id_columns": id_columns,
+            "matches_sample": ids_match,
+        },
+        "errors": errors,
+        "warnings": warnings,
+        "submission_policy": _submission_policy(),
+    }
+
+
 def normalize_competition_slug(value: str) -> str:
     """Normalize a Kaggle competition URL or slug into a competition slug."""
 
@@ -224,6 +485,50 @@ def normalize_competition_slug(value: str) -> str:
     return slug
 
 
+def _resolve_workspace(workspace: str | Path) -> Path:
+    workspace_path = Path(workspace).expanduser().resolve()
+    if not workspace_path.is_dir():
+        raise KaggleWorkflowError(
+            "workspace does not exist or is not a directory",
+            code="workspace_not_found",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"workspace": str(workspace_path)},
+        )
+    return workspace_path
+
+
+def _competition_slug_from_workspace(workspace_path: Path) -> str | None:
+    metadata_path = workspace_path / ".labmate" / "competition.json"
+    if not metadata_path.is_file():
+        return None
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    competition = metadata.get("competition")
+    if not isinstance(competition, dict):
+        return None
+    slug = competition.get("slug")
+    return str(slug) if slug else None
+
+
+def _run_id(run_name: str | None) -> str:
+    raw_name = run_name or f"constant-baseline-{_timestamp_for_path()}"
+    normalized = re.sub(r"[^A-Za-z0-9_.-]+", "-", raw_name.strip()).strip("-._")
+    if not normalized:
+        raise KaggleWorkflowError(
+            "run_name must contain at least one path-safe character",
+            code="invalid_arguments",
+            exit_code=ExitCode.USAGE_ERROR,
+            details={"run_name": run_name or ""},
+        )
+    return normalized
+
+
+def _timestamp_for_path() -> str:
+    return datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+
+
 def _slug_from_url_parts(parts: list[str]) -> str:
     if not parts:
         raise KaggleWorkflowError(
@@ -237,6 +542,358 @@ def _slug_from_url_parts(parts: list[str]) -> str:
             if index + 1 < len(parts):
                 return parts[index + 1]
     return parts[-1]
+
+
+def _baseline_predictions(
+    *,
+    workspace_path: Path,
+    data_path: Path,
+    inspection: dict[str, Any],
+    strategy: str,
+) -> dict[str, Any]:
+    relations = inspection.get("relations", {})
+    sample_name = relations.get("sample_submission_file")
+    train_name = relations.get("train_file")
+    alignment = relations.get("sample_submission_alignment")
+    if not isinstance(sample_name, str):
+        raise KaggleWorkflowError(
+            "sample submission file was not detected",
+            code="sample_submission_not_found",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"data_dir": _relative_to(workspace_path, data_path)},
+        )
+    if not isinstance(alignment, dict):
+        raise KaggleWorkflowError(
+            "sample submission alignment could not be inferred",
+            code="sample_submission_not_found",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"sample_submission_file": sample_name},
+        )
+
+    sample_path = data_path / sample_name
+    sample_rows, fieldnames = _read_tabular_rows(sample_path)
+    output_columns = [
+        str(column) for column in alignment.get("submission_output_columns", []) if column
+    ]
+    if not output_columns:
+        raise KaggleWorkflowError(
+            "sample submission has no prediction output columns",
+            code="invalid_submission_format",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"sample_submission_file": sample_name},
+        )
+
+    train_rows: list[dict[str, str]] = []
+    if isinstance(train_name, str):
+        train_rows, _train_columns = _read_tabular_rows(data_path / train_name)
+
+    fill_values: dict[str, str] = {}
+    fill_sources: dict[str, str] = {}
+    effective_strategies: dict[str, str] = {}
+    for column in output_columns:
+        fill_value, source, effective_strategy = _prediction_fill_value(
+            column,
+            strategy=strategy,
+            train_rows=train_rows,
+            sample_rows=sample_rows,
+        )
+        fill_values[column] = fill_value
+        fill_sources[column] = source
+        effective_strategies[column] = effective_strategy
+
+    candidate_rows = []
+    for sample_row in sample_rows:
+        row = dict(sample_row)
+        for column in output_columns:
+            row[column] = fill_values[column]
+        candidate_rows.append(row)
+
+    return {
+        "rows": candidate_rows,
+        "fieldnames": fieldnames,
+        "output_columns": output_columns,
+        "fill_values": fill_values,
+        "source": fill_sources,
+        "effective_strategies": effective_strategies,
+        "sample_submission_file": sample_name,
+        "train_file": train_name,
+    }
+
+
+def _prediction_fill_value(
+    column: str,
+    *,
+    strategy: str,
+    train_rows: list[dict[str, str]],
+    sample_rows: list[dict[str, str]],
+) -> tuple[str, str, str]:
+    train_values = [_clean_value(row.get(column, "")) for row in train_rows]
+    train_values = [value for value in train_values if value != ""]
+    sample_values = [_clean_value(row.get(column, "")) for row in sample_rows]
+    sample_values = [value for value in sample_values if value != ""]
+
+    if strategy == "zero":
+        return "0", "constant_zero", "zero"
+    if strategy == "sample_default" or not train_values:
+        return _mode_or_default(sample_values, default="0"), "sample_submission", "sample_default"
+    if strategy == "target_mode":
+        return _mode_or_default(train_values, default="0"), "train_target_mode", "target_mode"
+    if strategy == "target_mean":
+        return _mean_or_mode(train_values), "train_target_mean", "target_mean"
+
+    if _looks_regression_like(train_values):
+        return _mean_or_mode(train_values), "train_target_mean", "target_mean"
+    return _mode_or_default(train_values, default="0"), "train_target_mode", "target_mode"
+
+
+def _clean_value(value: str | None) -> str:
+    return "" if value is None else str(value).strip()
+
+
+def _mode_or_default(values: list[str], *, default: str) -> str:
+    if not values:
+        return default
+    return Counter(values).most_common(1)[0][0]
+
+
+def _mean_or_mode(values: list[str]) -> str:
+    numeric_values = []
+    for value in values:
+        try:
+            numeric_values.append(float(value))
+        except ValueError:
+            return _mode_or_default(values, default="0")
+    if not numeric_values:
+        return "0"
+    mean = sum(numeric_values) / len(numeric_values)
+    if mean.is_integer():
+        return str(int(mean))
+    return f"{mean:.12g}"
+
+
+def _looks_regression_like(values: list[str]) -> bool:
+    if len(set(values)) <= 20:
+        return False
+    try:
+        for value in values:
+            float(value)
+    except ValueError:
+        return False
+    return True
+
+
+def _read_tabular_rows(path: Path) -> tuple[list[dict[str, str]], list[str]]:
+    if not path.is_file():
+        raise KaggleWorkflowError(
+            "expected tabular file does not exist",
+            code="dataset_file_not_found",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"path": str(path)},
+        )
+    delimiter = "\t" if path.suffix.lower() == ".tsv" else ","
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        reader = csv.DictReader(handle, delimiter=delimiter)
+        fieldnames = list(reader.fieldnames or [])
+        if not fieldnames:
+            raise KaggleWorkflowError(
+                "tabular file has no header row",
+                code="invalid_dataset_file",
+                exit_code=ExitCode.TOOL_ERROR,
+                details={"path": str(path)},
+            )
+        rows = [
+            {name: "" if row.get(name) is None else str(row.get(name)) for name in fieldnames}
+            for row in reader
+        ]
+    return rows, fieldnames
+
+
+def _write_submission(path: Path, *, fieldnames: list[str], rows: list[dict[str, str]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _baseline_manifest(
+    *,
+    workspace_path: Path,
+    competition: str | None,
+    run_id: str,
+    strategy: str,
+    baseline: dict[str, Any],
+    submission_path: Path,
+    validation: dict[str, Any],
+    research_brief: Any,
+) -> dict[str, Any]:
+    modeling_plan = (
+        research_brief.get("modeling_plan", {}) if isinstance(research_brief, dict) else {}
+    )
+    return {
+        "schema_version": "labmate.kaggle.baseline.v1",
+        "created_at_utc": datetime.now(UTC).replace(microsecond=0).isoformat(),
+        "competition": competition,
+        "run": {
+            "name": run_id,
+            "strategy": strategy,
+            "model_family": "constant_baseline",
+        },
+        "inputs": {
+            "sample_submission_file": baseline["sample_submission_file"],
+            "train_file": baseline["train_file"],
+            "output_columns": baseline["output_columns"],
+        },
+        "prediction": {
+            "fill_values": baseline["fill_values"],
+            "source": baseline["source"],
+            "effective_strategies": baseline["effective_strategies"],
+        },
+        "artifacts": {
+            "submission_path": _relative_to(workspace_path, submission_path),
+        },
+        "validation": validation,
+        "modeling_context": {
+            "suggested_metric": modeling_plan.get("suggested_metric"),
+            "validation_strategy": modeling_plan.get("validation_strategy"),
+        },
+    }
+
+
+def _baseline_ledger_row(
+    *,
+    workspace_path: Path,
+    run_id: str,
+    baseline: dict[str, Any],
+    submission_path: Path,
+    manifest_path: Path,
+    research_brief: Any,
+) -> dict[str, str]:
+    tracking_plan = (
+        research_brief.get("experiment_tracking_plan", {})
+        if isinstance(research_brief, dict)
+        else {}
+    )
+    metric = str(tracking_plan.get("primary_metric") or "task_metric_from_rules")
+    score_direction = str(tracking_plan.get("score_direction") or "unknown")
+    validation_strategy = str(tracking_plan.get("validation_strategy") or "not_validated")
+    artifacts = (
+        f"{_relative_to(workspace_path, submission_path)}; "
+        f"{_relative_to(workspace_path, manifest_path)}"
+    )
+    fill_summary = ", ".join(
+        f"{column}={value}" for column, value in baseline["fill_values"].items()
+    )
+    return {
+        "timestamp_utc": datetime.now(UTC).replace(microsecond=0).isoformat(),
+        "commit": _git_commit(workspace_path),
+        "experiment": run_id,
+        "model_family": "constant_baseline",
+        "features": "none",
+        "validation_strategy": validation_strategy,
+        "metric": metric,
+        "score": "",
+        "score_direction": score_direction,
+        "status": "submission_ready",
+        "artifacts": artifacts,
+        "notes": f"Constant baseline; {fill_summary}; not submitted.",
+    }
+
+
+def _append_ledger_row(ledger_path: Path, row: dict[str, str]) -> dict[str, Any]:
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    if not ledger_path.exists():
+        ledger_path.write_text("\t".join(RECOMMENDED_LEDGER_COLUMNS) + "\n", encoding="utf-8")
+
+    with ledger_path.open(newline="", encoding="utf-8") as handle:
+        reader = csv.reader(handle, delimiter="\t")
+        try:
+            columns = next(reader)
+        except StopIteration:
+            columns = list(RECOMMENDED_LEDGER_COLUMNS)
+
+    missing_columns = [column for column in RECOMMENDED_LEDGER_COLUMNS if column not in columns]
+    if missing_columns:
+        raise KaggleWorkflowError(
+            "results.tsv is missing recommended Labmate columns",
+            code="invalid_experiment_ledger",
+            exit_code=ExitCode.TOOL_ERROR,
+            details={"missing_columns": missing_columns},
+        )
+
+    with ledger_path.open("a", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns, delimiter="\t", extrasaction="ignore")
+        writer.writerow(row)
+
+    return {
+        "appended": True,
+        "ledger_path": ledger_path.name,
+        "row": {column: row.get(column, "") for column in columns},
+    }
+
+
+def _git_commit(cwd: Path) -> str:
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(cwd), "rev-parse", "--short", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "unknown"
+    commit = completed.stdout.strip()
+    return commit if completed.returncode == 0 and commit else "unknown"
+
+
+def _resolve_submission_path(workspace_path: Path, submission: str | Path) -> Path:
+    submission_path = Path(submission)
+    resolved = (
+        submission_path if submission_path.is_absolute() else workspace_path / submission_path
+    )
+    resolved = resolved.expanduser().resolve()
+    try:
+        resolved.relative_to(workspace_path)
+    except ValueError as exc:
+        raise KaggleWorkflowError(
+            "submission path must stay inside the Kaggle workspace",
+            code="invalid_arguments",
+            exit_code=ExitCode.USAGE_ERROR,
+            details={"workspace": str(workspace_path), "submission": str(submission)},
+        ) from exc
+    return resolved
+
+
+def _ids_match(
+    sample_rows: list[dict[str, str]],
+    candidate_rows: list[dict[str, str]],
+    id_columns: list[str],
+) -> bool | None:
+    if not id_columns:
+        return None
+    if len(sample_rows) != len(candidate_rows):
+        return False
+    for sample_row, candidate_row in zip(sample_rows, candidate_rows, strict=True):
+        for column in id_columns:
+            if sample_row.get(column, "") != candidate_row.get(column, ""):
+                return False
+    return True
+
+
+def _submission_policy() -> dict[str, Any]:
+    return {
+        "status": "manual_approval_required",
+        "message": (
+            "This artifact is not submitted. Ask for explicit user approval before "
+            "running Kaggle submission commands or MCP submission tools."
+        ),
+    }
 
 
 def _resolve_child_path(workspace_path: Path, child: str | Path) -> Path:
@@ -698,11 +1355,21 @@ def _next_actions(
                 },
                 {
                     "priority": 4,
-                    "surface": "agent",
-                    "action": "implement_baseline",
+                    "surface": "cli",
+                    "action": "create_constant_baseline",
+                    "command": f"labmate kaggle baseline {workspace_path}",
                     "purpose": (
-                        "Create a dummy/simple baseline with trusted validation before "
-                        "leaderboard submissions."
+                        "Create a validated sample-submission-compatible floor before "
+                        "modeling or leaderboard submissions."
+                    ),
+                },
+                {
+                    "priority": 5,
+                    "surface": "agent",
+                    "action": "implement_model_baseline",
+                    "purpose": (
+                        "Replace the constant baseline with a simple model after the "
+                        "submission path and ledger are trusted."
                     ),
                 },
             ]

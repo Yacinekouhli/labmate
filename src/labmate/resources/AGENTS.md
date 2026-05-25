@@ -23,6 +23,8 @@ When `program.md` asks for evidence, gather it before editing code:
 
 ```bash
 labmate kaggle start <competition-url-or-slug> --workspace <workspace>
+labmate kaggle baseline <workspace> --run-name constant_baseline
+labmate kaggle validate-submission submissions/constant_baseline.csv --workspace <workspace>
 labmate tools
 labmate project-scan <project-root>
 labmate experiment-summary <project-root-or-results.tsv>
@@ -39,7 +41,8 @@ assumptions, experiment ledger plan, and implementation recommendations before
 changing model code.
 
 For Kaggle competitions, use `labmate kaggle start` to create the workspace,
-ledger, and agent handoff first. Submissions are never part of the research
+ledger, and agent handoff first, then create and validate a constant baseline
+before asking to submit anything. Submissions are never part of the research
 step; ask for explicit user approval for the exact file and message before any
 Kaggle submit command or MCP submission tool.
 

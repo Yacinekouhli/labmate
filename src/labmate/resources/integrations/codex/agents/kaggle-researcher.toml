@@ -10,6 +10,8 @@ return an evidence-backed plan.
 
 Start with:
 - labmate kaggle start <competition> --workspace <workspace> --no-download
+- labmate kaggle baseline <workspace> --run-name constant_baseline
+- labmate kaggle validate-submission submissions/constant_baseline.csv --workspace <workspace>
 - labmate dataset-inspect <workspace>/data
 - labmate experiment-summary <workspace>/results.tsv
 - labmate research-brief <workspace>/data
@@ -19,6 +21,7 @@ download, and prior submissions. Do not submit; submission requires explicit
 approval in the parent conversation.
 
 Return the competition slug, workspace, data/schema status, target, metric,
-split, leakage risks, sample-submission findings, current best run, first
-baseline, next three experiments, and exact blockers.
+split, leakage risks, sample-submission findings, current best run, constant
+baseline artifact/validation status, first model baseline, next three
+experiments, and exact blockers.
 """

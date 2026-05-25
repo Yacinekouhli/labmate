@@ -225,6 +225,64 @@ def test_kaggle_start_command_returns_workspace_contract(tmp_path, capsys) -> No
     assert payload["result"]["agent_handoff"]["claude_project_command"] == "/kagglethis titanic"
 
 
+def test_kaggle_baseline_command_writes_submission_and_ledger(tmp_path, capsys) -> None:
+    workspace = tmp_path / "titanic"
+    data = workspace / "data"
+    data.mkdir(parents=True)
+    (data / "train.csv").write_text(
+        "PassengerId,Age,Survived\n1,22,0\n2,38,1\n3,30,1\n",
+        encoding="utf-8",
+    )
+    (data / "test.csv").write_text(
+        "PassengerId,Age\n4,35\n5,28\n",
+        encoding="utf-8",
+    )
+    (data / "sample_submission.csv").write_text(
+        "PassengerId,Survived\n4,0\n5,0\n",
+        encoding="utf-8",
+    )
+    main(["kaggle", "start", "titanic", "--workspace", str(workspace), "--no-download"])
+    capsys.readouterr()
+
+    exit_code = main(["kaggle", "baseline", str(workspace), "--run-name", "dummy"])
+    payload = _json_output(capsys)
+
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["tool"] == "kaggle_baseline"
+    assert payload["result"]["validation"]["status"] == "ok"
+    assert payload["result"]["artifacts"]["submission_path"] == "submissions/dummy.csv"
+    assert (workspace / "submissions" / "dummy.csv").is_file()
+
+
+def test_kaggle_validate_submission_command_returns_validation_contract(tmp_path, capsys) -> None:
+    workspace = tmp_path / "titanic"
+    data = workspace / "data"
+    data.mkdir(parents=True)
+    (data / "train.csv").write_text("id,target\n1,0\n", encoding="utf-8")
+    (data / "test.csv").write_text("id\n2\n", encoding="utf-8")
+    (data / "sample_submission.csv").write_text("id,target\n2,0\n", encoding="utf-8")
+    submission = workspace / "submissions" / "candidate.csv"
+    submission.parent.mkdir()
+    submission.write_text("id,target\n2,1\n", encoding="utf-8")
+
+    exit_code = main(
+        [
+            "kaggle",
+            "validate-submission",
+            "submissions/candidate.csv",
+            "--workspace",
+            str(workspace),
+        ]
+    )
+    payload = _json_output(capsys)
+
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["tool"] == "kaggle_validate_submission"
+    assert payload["result"]["status"] == "ok"
+
+
 def test_init_command_can_dry_run_from_packaged_resources(tmp_path, capsys) -> None:
     exit_code = main(["init", "codex", str(tmp_path)])
     payload = _json_output(capsys)

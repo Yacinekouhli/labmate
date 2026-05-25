@@ -45,6 +45,8 @@ From a checkout:
 uv sync
 uv run labmate tools
 uv run labmate kaggle start titanic --workspace ./titanic
+uv run labmate kaggle baseline ./titanic --run-name constant_baseline
+uv run labmate kaggle validate-submission submissions/constant_baseline.csv --workspace ./titanic
 uv run labmate project-scan /path/to/ml-repo
 uv run labmate experiment-summary /path/to/ml-repo
 uv run labmate research-brief /path/to/kaggle/data --max-benchmarks 3
@@ -77,6 +79,12 @@ Working today:
   `submissions/`, `reports/`, `program.md`, `results.tsv`, and a generated
   competition brief, tries Kaggle CLI download when enabled, inspects local data
   when available, and returns a Claude/Codex/MCP handoff.
+- `labmate kaggle baseline <workspace>` creates a constant baseline submission
+  from the local sample submission, validates rows/columns/IDs, writes a run
+  manifest under `runs/`, and appends a `results.tsv` row.
+- `labmate kaggle validate-submission <file> --workspace <workspace>` checks a
+  candidate submission against the local sample submission before any approval
+  request to submit.
 - `labmate project-scan <path>` scans an unknown ML repo for likely datasets,
   code entrypoints, dependency files, existing experiment ledgers, agent setup,
   and next Labmate commands.
@@ -121,6 +129,8 @@ Still stubbed or limited:
 - `kaggle_start` can use a local Kaggle CLI if configured. If the CLI, auth, or
   rules acceptance is missing, it keeps the workspace and returns structured
   next actions for Kaggle MCP or manual setup.
+- `kaggle_baseline` creates a constant baseline, not a learned model. It proves
+  the submission/ledger plumbing before the host agent implements a real model.
 
 ## Kaggle UX
 
@@ -149,8 +159,10 @@ The command/subagent flow is:
 2. use Kaggle CLI or Kaggle MCP for current competition details and data download
 3. inspect `train`, `test`, and `sample_submission`
 4. infer target, task, metric hints, leakage risks, validation strategy, and baseline plan
-5. log every run in `results.tsv`
-6. ask for explicit approval before any Kaggle submission
+5. create a constant baseline artifact with `kaggle_baseline`
+6. validate submission rows, columns, and IDs
+7. log every run in `results.tsv`
+8. ask for explicit approval before any Kaggle submission
 
 ## Agent Workflow
 
@@ -158,6 +170,8 @@ A coding agent should use Labmate before editing model code:
 
 ```bash
 uv run labmate kaggle start titanic --workspace ./titanic --no-download
+uv run labmate kaggle baseline ./titanic --run-name constant_baseline
+uv run labmate kaggle validate-submission submissions/constant_baseline.csv --workspace ./titanic
 uv run labmate project-scan .
 uv run labmate experiment-summary .
 uv run labmate research-brief data/ --max-benchmarks 3
