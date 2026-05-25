@@ -6,6 +6,7 @@ import csv
 import gzip
 import io
 import json
+import re
 import zipfile
 from collections import Counter
 from collections.abc import Iterable
@@ -458,7 +459,7 @@ def _final_type(type_counts: Counter[str]) -> str:
 def _role_hints(name: str, row_count: int, unique_count: int) -> list[str]:
     normalized = _normalize_name(name)
     hints: list[str] = []
-    if normalized in ID_COLUMN_NAMES or normalized.endswith("_id"):
+    if normalized in ID_COLUMN_NAMES or normalized.endswith("_id") or _looks_like_compact_id(name):
         hints.append("id")
     if row_count > 0 and unique_count == row_count:
         hints.append("unique_per_row")
@@ -488,7 +489,7 @@ def _target_column_hints(
         if "target_name" in role_hints:
             score += 0.8
             reasons.append("column name looks like a supervised-learning target")
-        if file_role == "sample_submission" and "id" not in role_hints:
+        if file_role == "sample_submission" and "id" not in role_hints and column["position"] != 0:
             score += 0.95
             reasons.append("non-id column in a sample submission file")
         if normalized.startswith("is_") or normalized.startswith("has_"):
@@ -884,3 +885,10 @@ def _normalize_name(name: str) -> str:
     while "__" in normalized:
         normalized = normalized.replace("__", "_")
     return normalized
+
+
+def _looks_like_compact_id(name: str) -> bool:
+    compact = re.sub(r"[^a-z0-9]", "", name.lower())
+    if compact in {"valid", "grid"}:
+        return False
+    return len(compact) > 2 and compact.endswith("id")

@@ -1,17 +1,18 @@
 # Labmate
 
-Agent-agnostic ML research tooling for coding agents.
+Agent-agnostic ML research and Kaggle competition tooling for coding agents.
 
 Labmate gives Codex, Claude Code, Cursor, and other coding agents a shared ML
-research layer: papers, benchmarks, datasets, docs, code examples, and
-experiment planning without depending on one agent runtime.
+research layer: Kaggle competition setup, papers, benchmarks, datasets, docs,
+code examples, and experiment planning without depending on one agent runtime.
 
 The host agent owns the model, approvals, shell access, file edits, and context
 management. Labmate provides the portable layer:
 
 - reusable `AGENTS.md` and `program.md` workflow conventions
-- read-only CLI tools with stable JSON contracts
+- CLI tools with stable JSON contracts
 - an MCP server generated from the same tool registry
+- an MCP prompt that Claude Code can surface as `/mcp__labmate__kagglethis`
 - skill documents for recurring ML research workflows
 - native wrappers for Codex and Claude Code
 
@@ -19,9 +20,10 @@ management. Labmate provides the portable layer:
 
 Early project scaffold. Labmate currently has a shared tool registry, stable
 CLI JSON contracts, a real stdio MCP server, and setup generators for Codex,
-Claude Code, and generic MCP/CLI hosts. The first implementation goal is a
-read-only research pack:
+Claude Code, and generic MCP/CLI hosts. The first product slice is a
+Kaggle-ready research pack:
 
+- Kaggle workspace bootstrap
 - literature search
 - citation graph
 - dataset inspection
@@ -29,10 +31,11 @@ read-only research pack:
 - benchmark lookup
 - framework docs fetch
 - GitHub example discovery
+- Claude `/kagglethis` command and `kaggle-researcher` subagent templates
 
-Mutating tools such as job submission, Kaggle submissions, repository writes,
-and experiment-tracker writes are intentionally out of scope for the first
-release.
+The Kaggle workspace bootstrap writes only local project scaffolding: directories,
+`program.md`, `results.tsv`, metadata, and a generated brief. Kaggle submissions
+remain approval-gated and are intentionally separate from research/setup.
 
 ## Quickstart
 
@@ -41,6 +44,7 @@ From a checkout:
 ```bash
 uv sync
 uv run labmate tools
+uv run labmate kaggle start titanic --workspace ./titanic
 uv run labmate project-scan /path/to/ml-repo
 uv run labmate experiment-summary /path/to/ml-repo
 uv run labmate research-brief /path/to/kaggle/data --max-benchmarks 3
@@ -68,6 +72,11 @@ Working today:
 
 - `labmate tools` lists the shared registry with schemas, backends, and CLI/MCP
   usage examples.
+- `labmate kaggle start <competition-url-or-slug>` creates or updates a local
+  Kaggle workspace, normalizes competition URLs, creates `data/`, `runs/`,
+  `submissions/`, `reports/`, `program.md`, `results.tsv`, and a generated
+  competition brief, tries Kaggle CLI download when enabled, inspects local data
+  when available, and returns a Claude/Codex/MCP handoff.
 - `labmate project-scan <path>` scans an unknown ML repo for likely datasets,
   code entrypoints, dependency files, existing experiment ledgers, agent setup,
   and next Labmate commands.
@@ -94,7 +103,10 @@ Working today:
 - `labmate github-find-examples <query>` finds candidate public GitHub
   repositories for implementation evidence; with `--repository owner/repo`, it
   also returns small public file snippets from matched paths.
-- `labmate-mcp` starts a stdio MCP server exposing the read-only registry tools.
+- `labmate-mcp` starts a stdio MCP server exposing the shared registry tools
+  with read-only/mutating risk annotations.
+- `labmate-mcp --list-prompts` shows the `kagglethis` MCP prompt for Claude Code
+  slash-command discovery.
 - `labmate init codex`, `labmate init claude-code`, and `labmate init generic`
   write non-destructive setup artifacts for existing ML repositories.
 
@@ -106,12 +118,46 @@ Still stubbed or limited:
   structured backend-unavailable failures; the default local catalog works.
 - `github-find-examples` uses unauthenticated GitHub APIs. Cross-repository
   code search still needs a future authenticated backend.
+- `kaggle_start` can use a local Kaggle CLI if configured. If the CLI, auth, or
+  rules acceptance is missing, it keeps the workspace and returns structured
+  next actions for Kaggle MCP or manual setup.
+
+## Kaggle UX
+
+Claude Code project setup gives the cleanest flow:
+
+```bash
+uv run labmate init claude-code /path/to/workspace --apply
+claude mcp add --transport stdio labmate -- uv run labmate-mcp
+```
+
+Then in Claude Code:
+
+```text
+/kagglethis https://www.kaggle.com/competitions/titanic ./titanic
+```
+
+If the MCP server is connected, Claude can also discover the MCP prompt:
+
+```text
+/mcp__labmate__kagglethis titanic
+```
+
+The command/subagent flow is:
+
+1. create/update the local workspace with `kaggle_start`
+2. use Kaggle CLI or Kaggle MCP for current competition details and data download
+3. inspect `train`, `test`, and `sample_submission`
+4. infer target, task, metric hints, leakage risks, validation strategy, and baseline plan
+5. log every run in `results.tsv`
+6. ask for explicit approval before any Kaggle submission
 
 ## Agent Workflow
 
 A coding agent should use Labmate before editing model code:
 
 ```bash
+uv run labmate kaggle start titanic --workspace ./titanic --no-download
 uv run labmate project-scan .
 uv run labmate experiment-summary .
 uv run labmate research-brief data/ --max-benchmarks 3
@@ -160,8 +206,7 @@ codex mcp add labmate -- uv run labmate-mcp
 Then in Codex:
 
 ```text
-/goal Follow program.md. Research papers, verify dataset schema and current docs, then implement only evidence-backed ML changes.
-Spawn ml_researcher for the research pass and wait for its summary before editing.
+/goal Work on Kaggle competition titanic. Start with labmate kaggle start, spawn kaggle_researcher for the research pass, verify metric/schema/validation, and do not submit without explicit approval.
 ```
 
 ## Claude Code Sketch
@@ -173,7 +218,6 @@ claude mcp add --transport stdio labmate -- uv run labmate-mcp
 Then in Claude Code:
 
 ```text
-/goal program.md acceptance criteria are satisfied, the research summary cites sources, dataset schema is verified, and tests pass
-/ml-research program.md
-Use the ml-researcher subagent for literature, benchmark, dataset, docs, and GitHub evidence.
+/kagglethis titanic
+Use the kaggle-researcher subagent for rules, metric, dataset, validation, prior runs, and first baseline planning.
 ```

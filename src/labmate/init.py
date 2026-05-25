@@ -197,6 +197,16 @@ def _templates_for_harness(
                     template_root,
                     "integrations",
                     "codex",
+                    "agents",
+                    "kaggle-researcher.toml",
+                ),
+                Path(".codex") / "agents" / "kaggle-researcher.toml",
+            ),
+            TemplateFile(
+                _join(
+                    template_root,
+                    "integrations",
+                    "codex",
                     "plugin",
                     "skills",
                     "ml-research",
@@ -220,6 +230,26 @@ def _templates_for_harness(
                     "ml-researcher.md",
                 ),
                 Path(".claude") / "agents" / "ml-researcher.md",
+            ),
+            TemplateFile(
+                _join(
+                    template_root,
+                    "integrations",
+                    "claude-code",
+                    "agents",
+                    "kaggle-researcher.md",
+                ),
+                Path(".claude") / "agents" / "kaggle-researcher.md",
+            ),
+            TemplateFile(
+                _join(
+                    template_root,
+                    "integrations",
+                    "claude-code",
+                    "commands",
+                    "kagglethis.md",
+                ),
+                Path(".claude") / "commands" / "kagglethis.md",
             ),
             TemplateFile(
                 _join(
@@ -275,9 +305,9 @@ def _planned_file(template: TemplateFile, project_root: Path, *, overwrite: bool
 def _goal_prompt(harness: Harness) -> str:
     if harness == "codex":
         return (
-            "/goal Follow program.md. Research papers, verify dataset schema and current docs, "
-            "then implement only evidence-backed ML changes. Spawn ml_researcher for the "
-            "research pass and wait for its summary before editing."
+            "/goal Follow program.md. For Kaggle work, start with `labmate kaggle start "
+            "<competition>`, spawn kaggle_researcher for the research pass, verify dataset "
+            "schema/metric/validation, and do not submit without explicit approval."
         )
 
     if harness == "generic":
@@ -289,7 +319,7 @@ def _goal_prompt(harness: Harness) -> str:
     return (
         "/goal program.md acceptance criteria are satisfied, the research summary cites sources, "
         "dataset schema is verified, and tests pass\n"
-        "/ml-research program.md"
+        "/kagglethis <competition-url-or-slug>"
     )
 
 
@@ -315,6 +345,7 @@ def _notes_for_harness(harness: Harness) -> tuple[str, ...]:
     if harness == "codex":
         return common + (
             ".codex/labmate.mcp.json is a mergeable MCP snippet; add it through Codex MCP config.",
+            "Use kaggle_researcher for competition research before editing model code.",
         )
 
     if harness == "generic":
@@ -326,4 +357,5 @@ def _notes_for_harness(harness: Harness) -> tuple[str, ...]:
     return common + (
         ".mcp.json is written only when absent; merge manually if the project "
         "already has MCP config.",
+        "Use /kagglethis <competition-url-or-slug> for Kaggle competition bootstrapping.",
     )

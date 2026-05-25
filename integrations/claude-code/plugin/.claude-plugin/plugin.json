@@ -1,9 +1,8 @@
 {
   "name": "labmate",
-  "description": "Agent-agnostic ML research workflows for Claude Code.",
+  "description": "Agent-agnostic ML and Kaggle competition workflows for Claude Code.",
   "version": "0.1.0",
   "author": {
     "name": "Labmate"
   }
 }
-

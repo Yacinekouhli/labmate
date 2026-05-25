@@ -43,6 +43,10 @@ tools, but they still enter through the registry and return the same
 should expose those as structured actions with tool names, arguments, purpose,
 and evidence expectations, not only as shell strings.
 
+Mutating setup tools, such as `kaggle_start`, also enter through the registry.
+They must be explicit about risk, write only local workspace artifacts, return
+the exact files touched, and keep irreversible or remote actions out of band.
+
 ## MCP Surface
 
 The MCP server is an adapter boundary, not a second source of truth. The
@@ -50,11 +54,16 @@ The MCP server is an adapter boundary, not a second source of truth. The
 the shared registry and exposes it through `list_mcp_tools()`,
 `labmate-mcp --list-tools`, and a stdio MCP transport.
 
-The MCP adapter exposes the read-only registry tools. Tool calls use the same
-`labmate.tool.v1` response contract as CLI commands, including structured
-failure payloads for invalid arguments and unavailable backends. This keeps
-Codex, Claude Code, and other MCP clients aligned with the same registry used by
-CLI commands and tests.
+The MCP adapter exposes the shared registry tools with read-only/mutating risk
+annotations. Tool calls use the same `labmate.tool.v1` response contract as CLI
+commands, including structured failure payloads for invalid arguments and
+unavailable backends. This keeps Codex, Claude Code, and other MCP clients
+aligned with the same registry used by CLI commands and tests.
+
+The MCP adapter also exposes prompts for host-native slash-command UX. The
+first prompt is `kagglethis`, which tells Claude Code or another MCP host how to
+call `kaggle_start`, when to use Kaggle MCP tools, and where submission approval
+is required.
 
 ## CLI Contracts
 
@@ -83,6 +92,7 @@ Harness wrappers translate native UX into the same core contracts.
 Codex wrapper:
 
 - `.codex/agents/ml-researcher.toml`
+- `.codex/agents/kaggle-researcher.toml`
 - Codex plugin manifest
 - Codex skill
 - plugin-local `.mcp.json`
@@ -91,6 +101,8 @@ Claude Code wrapper:
 
 - `.claude/skills/ml-research/SKILL.md`
 - `.claude/agents/ml-researcher.md`
+- `.claude/agents/kaggle-researcher.md`
+- `.claude/commands/kagglethis.md`
 - Claude plugin manifest
 - plugin-local `.mcp.json`
 
@@ -102,5 +114,7 @@ Generic wrapper:
 
 ## Safety
 
-The initial release is read-only. Mutating operations need a separate design
-with dry-run behavior, approval requirements, and audit summaries.
+Most research tools are read-only. Local workspace bootstrap is allowed when it
+is explicit and auditable. Remote or irreversible operations, especially Kaggle
+submissions, need separate approval requirements and audit summaries before they
+run.

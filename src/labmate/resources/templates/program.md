@@ -18,6 +18,10 @@ Forbidden changes:
 
 Run the relevant Labmate commands before editing model code.
 
+- Kaggle workspace:
+  - Command: `labmate kaggle start <competition-url-or-slug> --workspace <workspace>`
+  - Capture: competition slug, workspace paths, data/download status, agent
+    handoff, submission approval policy, and next actions.
 - Project scan:
   - Command: `labmate project-scan <project-root>`
   - Capture: likely dataset directories, code entrypoints, dependency files,
@@ -52,6 +56,8 @@ Run the relevant Labmate commands before editing model code.
   - Capture: repository URL, stars, language, license, warnings.
 
 Summarize evidence in the implementation plan with command outputs and URLs.
+For Kaggle competitions, keep submission separate from research and ask for
+explicit user approval before running any submit command.
 
 ## Metric
 

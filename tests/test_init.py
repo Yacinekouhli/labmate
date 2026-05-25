@@ -17,10 +17,11 @@ def test_codex_init_plan_lists_project_files(tmp_path: Path) -> None:
         "AGENTS.md": "write",
         "program.md": "write",
         ".codex/agents/ml-researcher.toml": "write",
+        ".codex/agents/kaggle-researcher.toml": "write",
         ".codex/skills/ml-research/SKILL.md": "write",
         ".codex/labmate.mcp.json": "write",
     }
-    assert "/goal Follow program.md" in plan.goal_prompt
+    assert "labmate kaggle start" in plan.goal_prompt
     assert plan.follow_up_commands == ("codex mcp add labmate -- uv run labmate-mcp",)
 
 
@@ -32,10 +33,12 @@ def test_claude_init_plan_lists_project_files(tmp_path: Path) -> None:
         "AGENTS.md": "write",
         "program.md": "write",
         ".claude/agents/ml-researcher.md": "write",
+        ".claude/agents/kaggle-researcher.md": "write",
+        ".claude/commands/kagglethis.md": "write",
         ".claude/skills/ml-research/SKILL.md": "write",
         ".mcp.json": "write",
     }
-    assert "/ml-research program.md" in plan.goal_prompt
+    assert "/kagglethis <competition-url-or-slug>" in plan.goal_prompt
     assert plan.follow_up_commands == (
         "claude mcp add --transport stdio labmate -- uv run labmate-mcp",
     )
@@ -107,12 +110,16 @@ def test_apply_init_copies_only_planned_writes(tmp_path: Path) -> None:
     assert existing_agents.read_text() == "keep local instructions\n"
     assert (tmp_path / "program.md").exists()
     assert (tmp_path / ".claude" / "agents" / "ml-researcher.md").exists()
+    assert (tmp_path / ".claude" / "agents" / "kaggle-researcher.md").exists()
+    assert (tmp_path / ".claude" / "commands" / "kagglethis.md").exists()
     assert (tmp_path / ".claude" / "skills" / "ml-research" / "SKILL.md").exists()
     assert (tmp_path / ".mcp.json").exists()
     assert existing_agents in result.skipped
     assert {path.relative_to(tmp_path).as_posix() for path in result.written} == {
         "program.md",
         ".claude/agents/ml-researcher.md",
+        ".claude/agents/kaggle-researcher.md",
+        ".claude/commands/kagglethis.md",
         ".claude/skills/ml-research/SKILL.md",
         ".mcp.json",
     }
@@ -128,6 +135,7 @@ def test_init_templates_include_actionable_labmate_workflow(tmp_path: Path) -> N
 
     for text in (agents, program, skill):
         assert "labmate project-scan <project-root>" in text
+        assert "labmate kaggle start" in text
         assert "labmate experiment-summary <project-root-or-results.tsv>" in text
         assert "labmate research-brief <dataset-path>" in text
         assert "labmate dataset-inspect <dataset-path>" in text

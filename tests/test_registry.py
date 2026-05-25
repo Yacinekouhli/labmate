@@ -1,11 +1,11 @@
 from labmate.tools.registry import get_tool, iter_tools
 
 
-def test_registry_contains_initial_read_only_tools() -> None:
+def test_registry_contains_initial_tools() -> None:
     tools = list(iter_tools())
 
     assert tools
-    assert all(tool.read_only for tool in tools)
+    assert all(tool.risk in {"read_only", "mutating"} for tool in tools)
     assert all(tool.input_schema["type"] == "object" for tool in tools)
     assert all(tool.usage_examples for tool in tools)
     assert all(
@@ -23,7 +23,12 @@ def test_registry_contains_initial_read_only_tools() -> None:
         "benchmark_lookup",
         "docs_fetch",
         "github_find_examples",
+        "kaggle_start",
     }
+
+    kaggle_start = get_tool("kaggle_start")
+    assert kaggle_start.read_only is False
+    assert kaggle_start.risk == "mutating"
 
 
 def test_get_tool_returns_named_tool() -> None:

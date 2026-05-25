@@ -150,6 +150,43 @@ def _build_parser() -> argparse.ArgumentParser:
     github.add_argument("--repository", help="Optional owner/repo filter.")
     github.add_argument("--max-results", type=int, default=10)
 
+    kaggle = subparsers.add_parser("kaggle", help="Kaggle competition workflows.")
+    kaggle_subparsers = kaggle.add_subparsers(dest="kaggle_command")
+    kaggle_start = kaggle_subparsers.add_parser(
+        "start",
+        help="Create or update a Kaggle competition workspace.",
+    )
+    kaggle_start.add_argument("competition", help="Kaggle competition URL or slug.")
+    kaggle_start.add_argument(
+        "--workspace",
+        help="Local competition workspace. Defaults to the competition slug.",
+    )
+    kaggle_start.add_argument(
+        "--data-dir",
+        default="data",
+        help="Workspace-relative data directory. Defaults to data/.",
+    )
+    kaggle_start.add_argument(
+        "--download",
+        dest="download",
+        action="store_true",
+        default=True,
+        help="Try Kaggle CLI download when available. This is the default.",
+    )
+    kaggle_start.add_argument(
+        "--no-download",
+        dest="download",
+        action="store_false",
+        help="Skip Kaggle CLI download and inspect existing local data only.",
+    )
+    kaggle_start.add_argument(
+        "--force-download",
+        action="store_true",
+        help="Pass --force to Kaggle CLI download.",
+    )
+    kaggle_start.add_argument("--sample-size", type=int, default=3)
+    kaggle_start.add_argument("--max-profile-rows", type=int, default=250_000)
+
     init = subparsers.add_parser("init", help="Plan or apply agent-harness setup.")
     init.add_argument(
         "harness",
@@ -277,6 +314,20 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.repository is not None:
             payload["repository"] = args.repository
         return _print_response(call_tool("github_find_examples", payload))
+
+    if args.command == "kaggle" and args.kaggle_command == "start":
+        payload = {
+            "competition": args.competition,
+            "backend": "local",
+            "data_dir": args.data_dir,
+            "download": args.download,
+            "force_download": args.force_download,
+            "sample_size": args.sample_size,
+            "max_profile_rows": args.max_profile_rows,
+        }
+        if args.workspace is not None:
+            payload["workspace"] = args.workspace
+        return _print_response(call_tool("kaggle_start", payload))
 
     if args.command == "init":
         try:

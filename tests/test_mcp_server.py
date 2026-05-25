@@ -7,9 +7,13 @@ import labmate.mcp_server as mcp_server
 from labmate.mcp_server import (
     call_mcp_tool,
     create_mcp_server,
+    export_mcp_prompts_json,
     export_mcp_tools_json,
+    get_mcp_prompt,
     iter_mcp_tool_definitions,
+    list_mcp_prompts,
     list_mcp_tools,
+    prompt_to_mcp_prompt,
     tool_to_mcp_metadata,
     tool_to_mcp_tool,
 )
@@ -24,9 +28,9 @@ def test_mcp_tools_are_generated_from_registry() -> None:
     assert mcp_tools == [tool_to_mcp_metadata(tool) for tool in registry_tools]
 
 
-def test_mcp_tool_exposure_is_read_only_registry_subset() -> None:
+def test_mcp_tool_exposure_matches_registry() -> None:
     assert [tool.name for tool in iter_mcp_tool_definitions()] == [
-        tool.name for tool in iter_tools() if tool.read_only
+        tool.name for tool in iter_tools()
     ]
 
 
@@ -65,11 +69,41 @@ def test_export_mcp_tools_json_returns_tools_object() -> None:
     assert payload == {"tools": list_mcp_tools()}
 
 
+def test_mcp_prompts_are_exported_for_slash_command_hosts() -> None:
+    prompts = list_mcp_prompts()
+    payload = json.loads(export_mcp_prompts_json(indent=None))
+
+    assert prompts[0]["name"] == "kagglethis"
+    assert payload == {"prompts": prompts}
+    prompt_model = prompt_to_mcp_prompt(prompts[0])
+    assert prompt_model.name == "kagglethis"
+    assert prompt_model.arguments is not None
+    assert prompt_model.arguments[0].name == "competition"
+
+
 def test_mcp_entrypoint_can_print_metadata(capsys) -> None:
     mcp_server.main(["--list-tools"])
 
     payload = json.loads(capsys.readouterr().out)
     assert payload == {"tools": list_mcp_tools()}
+
+
+def test_mcp_entrypoint_can_print_prompt_metadata(capsys) -> None:
+    mcp_server.main(["--list-prompts"])
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload == {"prompts": list_mcp_prompts()}
+
+
+def test_kagglethis_prompt_instructs_host_to_call_kaggle_start() -> None:
+    result = get_mcp_prompt("kagglethis", {"competition": "titanic", "workspace": "work"})
+
+    assert result.description == "Start a Kaggle competition workflow with Labmate."
+    text = result.messages[0].content.text
+    assert "`kaggle_start`" in text
+    assert '"competition": "titanic"' in text
+    assert '"workspace": "work"' in text
+    assert "Do not submit to Kaggle unless the user explicitly approves" in text
 
 
 def test_dataset_inspect_can_be_called_through_mcp_helper(tmp_path) -> None:
@@ -141,6 +175,25 @@ def test_experiment_summary_can_be_called_through_mcp_helper(tmp_path) -> None:
     assert result.structuredContent["ok"] is True
     assert result.structuredContent["tool"] == "experiment_summary"
     assert result.structuredContent["result"]["best_run"]["experiment"] == "dummy"
+
+
+def test_kaggle_start_can_be_called_through_mcp_helper(tmp_path) -> None:
+    result = call_mcp_tool(
+        "kaggle_start",
+        {
+            "competition": "titanic",
+            "workspace": str(tmp_path / "titanic"),
+            "download": False,
+        },
+    )
+
+    assert result.isError is False
+    assert result.structuredContent is not None
+    assert result.structuredContent["schema_version"] == "labmate.tool.v1"
+    assert result.structuredContent["ok"] is True
+    assert result.structuredContent["tool"] == "kaggle_start"
+    assert result.structuredContent["result"]["competition"]["slug"] == "titanic"
+    assert result.structuredContent["result"]["download"]["status"] == "skipped"
 
 
 def test_experiment_summary_mcp_missing_path_returns_contract_failure() -> None:
@@ -238,6 +291,18 @@ def test_create_mcp_server_registers_registry_tools() -> None:
 
     assert [tool.name for tool in tools] == [tool.name for tool in iter_tools()]
     assert [tool.inputSchema for tool in tools] == [tool.input_schema for tool in iter_tools()]
+
+
+def test_create_mcp_server_registers_labmate_prompts() -> None:
+    async def list_prompts() -> list[types.Prompt]:
+        server = create_mcp_server()
+        handler = server.request_handlers[types.ListPromptsRequest]
+        result = await handler(types.ListPromptsRequest())
+        return result.root.prompts
+
+    prompts = asyncio.run(list_prompts())
+
+    assert [prompt.name for prompt in prompts] == ["kagglethis"]
 
 
 def test_mcp_entrypoint_starts_stdio_server(monkeypatch) -> None:

@@ -201,6 +201,30 @@ def test_github_find_examples_command_validates_repository_filter(capsys) -> Non
     assert payload["error"]["code"] == "invalid_arguments"
 
 
+def test_kaggle_start_command_returns_workspace_contract(tmp_path, capsys) -> None:
+    workspace = tmp_path / "titanic"
+    exit_code = main(
+        [
+            "kaggle",
+            "start",
+            "https://www.kaggle.com/competitions/titanic/data",
+            "--workspace",
+            str(workspace),
+            "--no-download",
+        ]
+    )
+    payload = _json_output(capsys)
+
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["tool"] == "kaggle_start"
+    assert payload["result"]["competition"]["slug"] == "titanic"
+    assert payload["result"]["download"]["status"] == "skipped"
+    assert payload["result"]["data"]["status"] == "missing"
+    assert (workspace / "results.tsv").is_file()
+    assert payload["result"]["agent_handoff"]["claude_project_command"] == "/kagglethis titanic"
+
+
 def test_init_command_can_dry_run_from_packaged_resources(tmp_path, capsys) -> None:
     exit_code = main(["init", "codex", str(tmp_path)])
     payload = _json_output(capsys)

@@ -12,6 +12,7 @@ from labmate.tools.datasets import DatasetInspectionError, inspect_local_dataset
 from labmate.tools.docs import OfficialDocsBackend, fetch_docs
 from labmate.tools.experiments import ExperimentSummaryError, summarize_experiments
 from labmate.tools.github import GitHubRepositorySearchBackend, find_github_examples
+from labmate.tools.kaggle import KaggleWorkflowError, start_kaggle_competition
 from labmate.tools.literature import (
     ArxivSearchBackend,
     citation_graph,
@@ -59,6 +60,16 @@ def _integer_schema(
     }
     if maximum is not None:
         schema["maximum"] = maximum
+    if default is not None:
+        schema["default"] = default
+    return schema
+
+
+def _boolean_schema(description: str, *, default: bool | None = None) -> JsonObject:
+    schema: JsonObject = {
+        "type": "boolean",
+        "description": description,
+    }
     if default is not None:
         schema["default"] = default
     return schema
@@ -119,6 +130,13 @@ def _as_int(arguments: Mapping[str, JsonValue], name: str, default: int) -> int:
     value = arguments.get(name, default)
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{name} must be an integer")
+    return value
+
+
+def _as_bool(arguments: Mapping[str, JsonValue], name: str, default: bool) -> bool:
+    value = arguments.get(name, default)
+    if not isinstance(value, bool):
+        raise ValueError(f"{name} must be a boolean")
     return value
 
 
@@ -534,6 +552,58 @@ def _experiment_summary_handler(arguments: Mapping[str, JsonValue]) -> ToolRespo
     )
 
 
+def _kaggle_start_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
+    try:
+        competition = _as_str(arguments, "competition")
+        backend_name = _as_optional_str(arguments, "backend", "local")
+        workspace = _as_maybe_str(arguments, "workspace")
+        data_dir = _as_optional_str(arguments, "data_dir", "data")
+        download = _as_bool(arguments, "download", True)
+        force_download = _as_bool(arguments, "force_download", False)
+        sample_size = _as_int(arguments, "sample_size", 3)
+        max_profile_rows = _as_int(arguments, "max_profile_rows", 250_000)
+        if backend_name != "local":
+            return failure(
+                "kaggle_start",
+                code="backend_not_implemented",
+                message=f"Kaggle workflow backend {backend_name!r} is not implemented yet.",
+                exit_code=ExitCode.BACKEND_UNAVAILABLE,
+                details={"backend": backend_name},
+            )
+
+        result = start_kaggle_competition(
+            competition,
+            workspace=workspace,
+            data_dir=data_dir,
+            download=download,
+            force_download=force_download,
+            sample_size=sample_size,
+            max_profile_rows=max_profile_rows,
+        )
+    except KaggleWorkflowError as exc:
+        return failure(
+            "kaggle_start",
+            code=exc.code,
+            message=str(exc),
+            exit_code=exc.exit_code,
+            retryable=exc.retryable,
+            details=exc.details,
+        )
+    except ValueError as exc:
+        return failure(
+            "kaggle_start",
+            code="invalid_arguments",
+            message=str(exc),
+            exit_code=ExitCode.USAGE_ERROR,
+        )
+
+    return success(
+        "kaggle_start",
+        result,
+        metadata={"backend": "local"},
+    )
+
+
 def _not_implemented_handler(tool_name: str) -> ToolHandler:
     def handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
         backend = arguments.get("backend")
@@ -559,6 +629,7 @@ BENCHMARK_BACKENDS = ("local", "papers_with_code", "openml")
 RESEARCH_BRIEF_BACKENDS = ("local",)
 PROJECT_SCAN_BACKENDS = ("local",)
 EXPERIMENT_SUMMARY_BACKENDS = ("local",)
+KAGGLE_START_BACKENDS = ("local",)
 
 _TOOLS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
@@ -779,6 +850,59 @@ _TOOLS: tuple[ToolDefinition, ...] = (
                 "Summarize experiment runs through MCP.",
             ),
         ),
+    ),
+    ToolDefinition(
+        name="kaggle_start",
+        description=(
+            "Create or update a Kaggle competition workspace, inspect available data, "
+            "and produce an agent handoff plan."
+        ),
+        read_only=False,
+        backends=KAGGLE_START_BACKENDS,
+        input_schema=_object_schema(
+            {
+                "competition": _string_schema("Kaggle competition URL or slug."),
+                "backend": _backend_schema(KAGGLE_START_BACKENDS),
+                "workspace": _string_schema(
+                    "Optional local workspace path. Defaults to the competition slug.",
+                ),
+                "data_dir": _string_schema(
+                    "Workspace-relative data directory.",
+                ),
+                "download": _boolean_schema(
+                    "Whether to try Kaggle CLI download when available.",
+                    default=True,
+                ),
+                "force_download": _boolean_schema(
+                    "Whether to pass --force to Kaggle CLI download.",
+                    default=False,
+                ),
+                "sample_size": _integer_schema(
+                    "Number of sample rows to inspect per file.",
+                    minimum=0,
+                    maximum=50,
+                    default=3,
+                ),
+                "max_profile_rows": _integer_schema(
+                    "Maximum rows to profile per tabular file.",
+                    minimum=1,
+                    default=250_000,
+                ),
+            },
+            required=("competition",),
+        ),
+        handler=_kaggle_start_handler,
+        usage_examples=(
+            _cli_example(
+                "labmate kaggle start titanic --workspace ./titanic",
+                "Create a Kaggle workspace and inspect data when available.",
+            ),
+            _mcp_example(
+                {"competition": "titanic", "workspace": "./titanic", "download": False},
+                "Start a Kaggle workflow through MCP without attempting a download.",
+            ),
+        ),
+        risk="mutating",
     ),
     ToolDefinition(
         name="benchmark_lookup",

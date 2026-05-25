@@ -22,6 +22,7 @@ schemas, and workflow documents.
 When `program.md` asks for evidence, gather it before editing code:
 
 ```bash
+labmate kaggle start <competition-url-or-slug> --workspace <workspace>
 labmate tools
 labmate project-scan <project-root>
 labmate experiment-summary <project-root-or-results.tsv>
@@ -35,6 +36,11 @@ labmate github-find-examples "<implementation pattern>" --max-results 3
 
 Summarize the command outputs, cited URLs, dataset risks, metric/protocol
 assumptions, and implementation recommendations before changing model code.
+
+For Kaggle competitions, use `labmate kaggle start` to create the workspace,
+ledger, and agent handoff first. Submissions are never part of the research
+step; ask for explicit user approval for the exact file and message before any
+Kaggle submit command or MCP submission tool.
 
 If `project-scan` reports existing experiment files, continue that ledger rather
 than creating a parallel run tracker.
