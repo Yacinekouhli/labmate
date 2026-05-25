@@ -143,6 +143,18 @@ def test_experiment_summary_can_be_called_through_mcp_helper(tmp_path) -> None:
     assert result.structuredContent["result"]["best_run"]["experiment"] == "dummy"
 
 
+def test_experiment_summary_mcp_missing_path_returns_contract_failure() -> None:
+    result = call_mcp_tool("experiment_summary", {})
+
+    assert result.isError is True
+    assert result.structuredContent is not None
+    assert result.structuredContent["schema_version"] == "labmate.tool.v1"
+    assert result.structuredContent["ok"] is False
+    assert result.structuredContent["tool"] == "experiment_summary"
+    assert result.structuredContent["error"]["code"] == "invalid_arguments"
+    assert result.structuredContent["error"]["details"]["validator"] == "required"
+
+
 def test_dataset_inspect_can_be_called_through_registered_server_handler(tmp_path) -> None:
     (tmp_path / "train.csv").write_text("id,feature,target\n1,10,0\n2,11,1\n", encoding="utf-8")
     (tmp_path / "test.csv").write_text("id,feature\n3,12\n4,13\n", encoding="utf-8")

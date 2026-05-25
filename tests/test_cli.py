@@ -75,6 +75,17 @@ def test_experiment_summary_command_returns_ledger_contract(tmp_path, capsys) ->
     assert payload["result"]["best_run"]["experiment"] == "dummy"
 
 
+def test_experiment_summary_command_reports_unimplemented_backend(tmp_path, capsys) -> None:
+    exit_code = main(["experiment-summary", str(tmp_path), "--backend", "remote"])
+    payload = _json_output(capsys)
+
+    assert exit_code != 0
+    assert payload["ok"] is False
+    assert payload["tool"] == "experiment_summary"
+    assert payload["error"]["code"] == "backend_not_implemented"
+    assert payload["error"]["details"] == {"backend": "remote"}
+
+
 def test_research_brief_command_returns_workflow_contract(tmp_path, capsys) -> None:
     (tmp_path / "train.csv").write_text("id,feature,target\n1,10,0\n2,11,1\n", encoding="utf-8")
     (tmp_path / "test.csv").write_text("id,feature\n3,12\n", encoding="utf-8")
