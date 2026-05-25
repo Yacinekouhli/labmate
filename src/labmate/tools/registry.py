@@ -629,7 +629,10 @@ _TOOLS: tuple[ToolDefinition, ...] = (
     ),
     ToolDefinition(
         name="project_scan",
-        description="Scan a local ML project for datasets, code entrypoints, and agent setup.",
+        description=(
+            "Scan a local ML project for datasets, code entrypoints, experiment ledgers, "
+            "and agent setup."
+        ),
         read_only=True,
         backends=PROJECT_SCAN_BACKENDS,
         input_schema=_object_schema(
@@ -655,7 +658,7 @@ _TOOLS: tuple[ToolDefinition, ...] = (
         usage_examples=(
             _cli_example(
                 "labmate project-scan .",
-                "Find likely datasets and ML entrypoints in an unknown repo.",
+                "Find likely datasets, ML entrypoints, and experiment ledgers in an unknown repo.",
             ),
             _mcp_example(
                 {"path": "."},

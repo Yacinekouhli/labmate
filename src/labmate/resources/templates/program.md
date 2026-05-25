@@ -21,7 +21,8 @@ Run the relevant Labmate commands before editing model code.
 - Project scan:
   - Command: `labmate project-scan <project-root>`
   - Capture: likely dataset directories, code entrypoints, dependency files,
-    existing agent setup, and recommended next Labmate command.
+    existing experiment ledgers, existing agent setup, and recommended next
+    Labmate command.
 - First-pass brief:
   - Command: `labmate research-brief <dataset-path>`
   - Capture: inferred task, dataset warnings, benchmark URLs, recommended next

@@ -67,7 +67,8 @@ Working today:
 - `labmate tools` lists the shared registry with schemas, backends, and CLI/MCP
   usage examples.
 - `labmate project-scan <path>` scans an unknown ML repo for likely datasets,
-  code entrypoints, dependency files, agent setup, and next Labmate commands.
+  code entrypoints, dependency files, existing experiment ledgers, agent setup,
+  and next Labmate commands.
 - `labmate research-brief <path>` creates a concise first-pass ML brief by
   combining local dataset inspection, rough task inference, local benchmark
   context, local metric hints from documentation files, target distribution,

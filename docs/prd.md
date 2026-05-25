@@ -43,7 +43,7 @@ The first release should include:
 - `program.md` task protocol
 - read-only tool registry
 - CLI JSON contracts
-- local project scan for unknown ML repositories
+- local project scan for unknown ML repositories, including existing experiment ledgers
 - literature search with arXiv-backed results
 - first-pass research brief over local datasets, benchmark context, and ordered
   follow-up research actions, including provided validation/split-column guidance

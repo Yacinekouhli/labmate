@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import shlex
 from collections import defaultdict
 from pathlib import Path
@@ -38,6 +39,18 @@ AGENT_FILES = {
     "program.md": "labmate_program",
     ".mcp.json": "mcp_config",
 }
+EXPERIMENT_FILES = {
+    "experiment-log.md": "experiment_log",
+    "experiment_log.md": "experiment_log",
+    "experiment_log.tsv": "experiment_ledger",
+    "experiments.csv": "experiment_ledger",
+    "experiments.tsv": "experiment_ledger",
+    "results.csv": "experiment_ledger",
+    "results.tsv": "experiment_ledger",
+    "runs.csv": "experiment_ledger",
+    "runs.tsv": "experiment_ledger",
+}
+MAX_LEDGER_ROWS_TO_COUNT = 1_000
 CONTEXT_STEMS = {
     "data_description",
     "description",
@@ -75,6 +88,7 @@ def scan_local_project(
     scan_state = _scan_tree(root, max_depth=max_depth, max_entries=max_entries)
     dataset_candidates = _dataset_candidates(root, scan_state["dataset_files"])
     code_entrypoints = _code_entrypoints(root, scan_state["code_files"])
+    experiment_files = _experiment_file_summaries(root, scan_state["experiment_files"])
 
     return {
         "kind": "local_project_scan",
@@ -89,6 +103,8 @@ def scan_local_project(
         "code_entrypoints": code_entrypoints,
         "dependency_files": _relative_file_summaries(root, scan_state["dependency_files"]),
         "agent_files": _relative_file_summaries(root, scan_state["agent_files"]),
+        "experiment_files": experiment_files,
+        "experiment_tracking": _experiment_tracking_summary(experiment_files),
         "recommended_next_commands": _recommended_next_commands(dataset_candidates),
         "warnings": _scan_warnings(dataset_candidates, scan_state["truncated"]),
     }
@@ -100,6 +116,7 @@ def _scan_tree(root: Path, *, max_depth: int, max_entries: int) -> dict[str, Any
         "code_files": [],
         "dataset_files": [],
         "dependency_files": [],
+        "experiment_files": [],
         "truncated": False,
         "visited_entries": 0,
     }
@@ -170,6 +187,8 @@ def _classify_file(root: Path, file_path: Path, state: dict[str, Any]) -> None:
         state["dependency_files"].append(file_path)
     if name in AGENT_FILES or _is_agent_config(file_path, root):
         state["agent_files"].append(file_path)
+    if _experiment_file_kind(file_path):
+        state["experiment_files"].append(file_path)
 
 
 def _is_agent_config(path: Path, root: Path) -> bool:
@@ -365,6 +384,99 @@ def _known_file_kind(path: Path, root: Path) -> str:
     if _is_agent_config(path, root):
         return "agent_config"
     return "file"
+
+
+def _experiment_file_summaries(root: Path, files: list[Path]) -> list[dict[str, Any]]:
+    return [
+        _experiment_file_summary(root, file_path)
+        for file_path in sorted(files, key=lambda path: _relative_path(root, path))
+    ]
+
+
+def _experiment_file_summary(root: Path, file_path: Path) -> dict[str, Any]:
+    summary: dict[str, Any] = {
+        "path": _relative_path(root, file_path),
+        "kind": _experiment_file_kind(file_path),
+    }
+    if file_path.suffix.lower() in {".csv", ".tsv"}:
+        summary.update(_ledger_table_summary(file_path))
+    else:
+        summary["read_status"] = "metadata_only"
+    return summary
+
+
+def _experiment_file_kind(path: Path) -> str | None:
+    return EXPERIMENT_FILES.get(path.name.lower())
+
+
+def _ledger_table_summary(path: Path) -> dict[str, Any]:
+    delimiter = "\t" if path.suffix.lower() == ".tsv" else ","
+    try:
+        with path.open(newline="", encoding="utf-8") as handle:
+            reader = csv.reader(handle, delimiter=delimiter)
+            try:
+                columns = next(reader)
+            except StopIteration:
+                return {
+                    "format": path.suffix.lower().removeprefix("."),
+                    "columns": [],
+                    "completed_run_count": 0,
+                    "row_count_status": "exact",
+                    "read_status": "empty",
+                }
+
+            completed_run_count = 0
+            row_count_status = "exact"
+            for _row in reader:
+                if completed_run_count >= MAX_LEDGER_ROWS_TO_COUNT:
+                    row_count_status = "bounded"
+                    break
+                completed_run_count += 1
+    except (OSError, UnicodeDecodeError, csv.Error) as exc:
+        return {
+            "format": path.suffix.lower().removeprefix("."),
+            "columns": [],
+            "completed_run_count": None,
+            "row_count_status": "unknown",
+            "read_status": "unreadable",
+            "error": str(exc),
+        }
+
+    return {
+        "format": path.suffix.lower().removeprefix("."),
+        "columns": columns,
+        "completed_run_count": completed_run_count,
+        "row_count_status": row_count_status,
+        "read_status": "ok",
+    }
+
+
+def _experiment_tracking_summary(experiment_files: list[dict[str, Any]]) -> dict[str, Any]:
+    if not experiment_files:
+        return {
+            "status": "not_found",
+            "recommended_ledger_path": "results.tsv",
+            "notes": [
+                "Create results.tsv using the research-brief experiment_tracking_plan "
+                "before the first run."
+            ],
+        }
+
+    recommended_ledger_path = next(
+        (
+            file_info["path"]
+            for file_info in experiment_files
+            if file_info["kind"] == "experiment_ledger"
+        ),
+        experiment_files[0]["path"],
+    )
+    return {
+        "status": "existing_tracking_found",
+        "recommended_ledger_path": recommended_ledger_path,
+        "notes": [
+            f"Continue logging runs in {recommended_ledger_path}; do not start a new ledger."
+        ],
+    }
 
 
 def _recommended_next_commands(candidates: list[dict[str, Any]]) -> list[str]:

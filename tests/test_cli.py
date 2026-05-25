@@ -49,6 +49,7 @@ def test_project_scan_command_returns_project_contract(tmp_path, capsys) -> None
     assert payload["ok"] is True
     assert payload["tool"] == "project_scan"
     assert payload["result"]["dataset_candidates"][0]["path"] == "data"
+    assert payload["result"]["experiment_tracking"]["recommended_ledger_path"] == "results.tsv"
     assert payload["result"]["recommended_next_commands"][1] == f"labmate research-brief {data}"
 
 

@@ -35,6 +35,9 @@ labmate github-find-examples "<implementation pattern>" --max-results 3
 Summarize the command outputs, cited URLs, dataset risks, metric/protocol
 assumptions, and implementation recommendations before changing model code.
 
+If `project-scan` reports existing experiment files, continue that ledger rather
+than creating a parallel run tracker.
+
 ## Initial Development Checks
 
 - Run `uv run ruff check .` once Python code exists.
