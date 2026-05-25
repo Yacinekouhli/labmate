@@ -92,6 +92,12 @@ Claude Code wrapper:
 - Claude plugin manifest
 - plugin-local `.mcp.json`
 
+Generic wrapper:
+
+- `AGENTS.md`
+- `program.md`
+- `.mcp.json` with a `labmate` stdio server entry
+
 ## Safety
 
 The initial release is read-only. Mutating operations need a separate design

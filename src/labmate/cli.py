@@ -141,7 +141,10 @@ def _build_parser() -> argparse.ArgumentParser:
     github.add_argument("--max-results", type=int, default=10)
 
     init = subparsers.add_parser("init", help="Plan or apply agent-harness setup.")
-    init.add_argument("harness", choices=["codex", "claude", "claude-code"])
+    init.add_argument(
+        "harness",
+        choices=["codex", "claude", "claude-code", "generic", "mcp", "cursor"],
+    )
     init.add_argument("project_root")
     init.add_argument("--apply", action="store_true", help="Write planned files.")
     init.add_argument(

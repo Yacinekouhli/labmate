@@ -8,7 +8,7 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 from typing import Literal
 
-Harness = Literal["codex", "claude-code"]
+Harness = Literal["codex", "claude-code", "generic"]
 PlanAction = Literal["write", "skip", "overwrite"]
 TemplateSource = Path | Traversable
 
@@ -126,9 +126,14 @@ def apply_init(plan: InitPlan) -> AppliedInit:
 def _normalize_harness(harness: str) -> Harness:
     normalized = harness.strip().lower().replace("_", "-")
     aliases = {
+        "agent": "generic",
+        "agents": "generic",
         "claude": "claude-code",
         "claude-code": "claude-code",
         "codex": "codex",
+        "cursor": "generic",
+        "generic": "generic",
+        "mcp": "generic",
     }
     try:
         return aliases[normalized]  # type: ignore[return-value]
@@ -204,7 +209,7 @@ def _templates_for_harness(
                 Path(".codex") / "labmate.mcp.json",
             ),
         )
-    else:
+    elif harness == "claude-code":
         harness_templates = (
             TemplateFile(
                 _join(
@@ -229,6 +234,13 @@ def _templates_for_harness(
             ),
             TemplateFile(
                 _join(template_root, "integrations", "claude-code", "plugin", ".mcp.json"),
+                Path(".mcp.json"),
+            ),
+        )
+    else:
+        harness_templates = (
+            TemplateFile(
+                _join(template_root, "integrations", "generic", ".mcp.json"),
                 Path(".mcp.json"),
             ),
         )
@@ -268,6 +280,12 @@ def _goal_prompt(harness: Harness) -> str:
             "research pass and wait for its summary before editing."
         )
 
+    if harness == "generic":
+        return (
+            "Follow AGENTS.md and program.md. Start with `labmate project-scan <project-root>`, "
+            "then run the recommended `labmate research-brief ...` command before editing ML code."
+        )
+
     return (
         "/goal program.md acceptance criteria are satisfied, the research summary cites sources, "
         "dataset schema is verified, and tests pass\n"
@@ -278,6 +296,12 @@ def _goal_prompt(harness: Harness) -> str:
 def _follow_up_commands(harness: Harness) -> tuple[str, ...]:
     if harness == "codex":
         return ("codex mcp add labmate -- uv run labmate-mcp",)
+
+    if harness == "generic":
+        return (
+            "uv run labmate tools",
+            "uv run labmate project-scan <project-root>",
+        )
 
     return ("claude mcp add --transport stdio labmate -- uv run labmate-mcp",)
 
@@ -291,6 +315,12 @@ def _notes_for_harness(harness: Harness) -> tuple[str, ...]:
     if harness == "codex":
         return common + (
             ".codex/labmate.mcp.json is a mergeable MCP snippet; add it through Codex MCP config.",
+        )
+
+    if harness == "generic":
+        return common + (
+            ".mcp.json is a portable MCP snippet for hosts that read mcpServers-style config.",
+            "Cursor currently uses the generic setup; no Cursor-specific files are generated.",
         )
 
     return common + (

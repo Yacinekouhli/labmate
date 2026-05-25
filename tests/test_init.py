@@ -41,6 +41,30 @@ def test_claude_init_plan_lists_project_files(tmp_path: Path) -> None:
     )
 
 
+def test_generic_init_plan_lists_portable_project_files(tmp_path: Path) -> None:
+    plan = plan_init("generic", tmp_path)
+
+    assert plan.harness == "generic"
+    assert _actions_by_destination(plan) == {
+        "AGENTS.md": "write",
+        "program.md": "write",
+        ".mcp.json": "write",
+    }
+    assert "labmate project-scan <project-root>" in plan.goal_prompt
+    assert plan.follow_up_commands == (
+        "uv run labmate tools",
+        "uv run labmate project-scan <project-root>",
+    )
+    assert any("portable MCP snippet" in note for note in plan.notes)
+
+
+def test_cursor_init_uses_generic_setup(tmp_path: Path) -> None:
+    plan = plan_init("cursor", tmp_path)
+
+    assert plan.harness == "generic"
+    assert _actions_by_destination(plan)[".mcp.json"] == "write"
+
+
 def test_init_plan_skips_existing_files_by_default(tmp_path: Path) -> None:
     existing_program = tmp_path / "program.md"
     existing_program.write_text("custom program\n")
@@ -118,6 +142,7 @@ def test_all_mcp_snippets_use_labmate_alias() -> None:
     snippets = [
         repo_root / "integrations" / "codex" / "plugin" / ".mcp.json",
         repo_root / "integrations" / "claude-code" / "plugin" / ".mcp.json",
+        repo_root / "integrations" / "generic" / ".mcp.json",
         repo_root
         / "src"
         / "labmate"
@@ -134,6 +159,7 @@ def test_all_mcp_snippets_use_labmate_alias() -> None:
         / "claude-code"
         / "plugin"
         / ".mcp.json",
+        repo_root / "src" / "labmate" / "resources" / "integrations" / "generic" / ".mcp.json",
     ]
 
     for snippet in snippets:
@@ -144,4 +170,4 @@ def test_all_mcp_snippets_use_labmate_alias() -> None:
 
 def test_unknown_harness_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(UnknownHarnessError):
-        plan_init("cursor", tmp_path)
+        plan_init("unknown", tmp_path)

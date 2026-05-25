@@ -24,7 +24,8 @@ existing coding agents. Labmate should meet those agents where they are.
 
 - Provide read-only ML research tools that any agent can drive.
 - Support direct CLI use and typed MCP use from one shared registry.
-- Provide native-feeling Codex and Claude Code setup.
+- Provide native-feeling Codex and Claude Code setup plus generic MCP setup for
+  other hosts.
 - Keep the core independent from a specific model provider or agent runtime.
 
 ## Non-Goals
@@ -51,7 +52,7 @@ The first release should include:
 - GitHub example discovery skeleton
 - Codex custom agent/plugin examples
 - Claude Code skill/subagent/plugin examples
-- non-destructive Codex and Claude Code init plans for existing ML repositories
+- non-destructive Codex, Claude Code, and generic MCP init plans for existing ML repositories
 
 ## Success Criteria
 

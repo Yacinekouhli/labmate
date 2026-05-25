@@ -164,3 +164,18 @@ def test_init_command_can_dry_run_from_packaged_resources(tmp_path, capsys) -> N
     assert payload["tool"] == "init"
     assert payload["result"]["files"][0]["relative_destination"] == "AGENTS.md"
     assert not (tmp_path / "AGENTS.md").exists()
+
+
+def test_generic_init_command_can_dry_run_from_packaged_resources(tmp_path, capsys) -> None:
+    exit_code = main(["init", "cursor", str(tmp_path)])
+    payload = _json_output(capsys)
+
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["tool"] == "init"
+    assert payload["result"]["harness"] == "generic"
+    assert [file["relative_destination"] for file in payload["result"]["files"]] == [
+        "AGENTS.md",
+        "program.md",
+        ".mcp.json",
+    ]

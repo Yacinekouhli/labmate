@@ -18,8 +18,9 @@ management. Labmate provides the portable layer:
 ## Status
 
 Early project scaffold. Labmate currently has a shared tool registry, stable
-CLI JSON contracts, a real stdio MCP server, and setup generators for Codex and
-Claude Code. The first implementation goal is a read-only research pack:
+CLI JSON contracts, a real stdio MCP server, and setup generators for Codex,
+Claude Code, and generic MCP/CLI hosts. The first implementation goal is a
+read-only research pack:
 
 - literature search
 - citation graph
@@ -52,6 +53,7 @@ Add Labmate to a target ML repository without overwriting existing files:
 ```bash
 uv run labmate init codex /path/to/ml-repo
 uv run labmate init claude-code /path/to/ml-repo
+uv run labmate init generic /path/to/ml-repo
 ```
 
 Apply the generated files when the dry run looks right:
@@ -82,8 +84,8 @@ Working today:
 - `labmate github-find-examples <query>` finds candidate public GitHub
   repositories for implementation evidence.
 - `labmate-mcp` starts a stdio MCP server exposing the read-only registry tools.
-- `labmate init codex` and `labmate init claude-code` write non-destructive
-  setup artifacts for existing ML repositories.
+- `labmate init codex`, `labmate init claude-code`, and `labmate init generic`
+  write non-destructive setup artifacts for existing ML repositories.
 
 Still stubbed or limited:
 
@@ -122,6 +124,7 @@ src/labmate/           Python package
 integrations/codex/    Codex custom agent and plugin wrappers
 integrations/claude-code/
                        Claude Code skills, subagents, and plugin wrappers
+integrations/generic/  Portable MCP snippet for other agent hosts
 tests/                 Contract tests
 ```
 
