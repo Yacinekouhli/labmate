@@ -32,6 +32,32 @@ Mutating tools such as job submission, Kaggle submissions, repository writes,
 and experiment-tracker writes are intentionally out of scope for the first
 release.
 
+## Quickstart
+
+From a checkout:
+
+```bash
+uv sync
+uv run labmate tools
+uv run labmate dataset-inspect /path/to/kaggle/data
+uv run labmate benchmark-lookup "tabular classification"
+uv run labmate docs-fetch "xgboost gpu parameters" --max-results 3
+uv run labmate github-find-examples "xgboost tabular kaggle" --max-results 3
+```
+
+Add Labmate to a target ML repository without overwriting existing files:
+
+```bash
+uv run labmate init codex /path/to/ml-repo
+uv run labmate init claude-code /path/to/ml-repo
+```
+
+Apply the generated files when the dry run looks right:
+
+```bash
+uv run labmate init codex /path/to/ml-repo --apply
+```
+
 Working today:
 
 - `labmate tools` lists the shared registry.
@@ -58,6 +84,23 @@ Still stubbed or limited:
   structured backend-unavailable failures; the default local catalog works.
 - `github-find-examples` uses unauthenticated repository search; file-level code
   snippets need a future authenticated code-search backend.
+
+## Agent Workflow
+
+A coding agent should use Labmate before editing model code:
+
+```bash
+uv run labmate dataset-inspect data/
+uv run labmate benchmark-lookup "tabular classification auc"
+uv run labmate literature-search "tabular classification baseline" --max-results 5
+uv run labmate citation-graph arxiv:1603.02754 --max-results 3
+uv run labmate docs-fetch "sklearn ColumnTransformer pipeline" --max-results 3
+uv run labmate github-find-examples "sklearn pipeline tabular classification" --max-results 3
+```
+
+The implementation plan should cite the returned URLs, dataset warnings,
+benchmark metric/protocol assumptions, and relevant examples before proposing
+changes.
 
 ## Repository Layout
 
