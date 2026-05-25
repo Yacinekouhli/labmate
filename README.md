@@ -78,8 +78,9 @@ Working today:
   combining local dataset inspection, rough task inference, local benchmark
   context, local metric hints from documentation files, target distribution,
   validation/split columns, sample-submission format, a baseline modeling plan,
-  a structured experiment-tracking plan, a follow-up research plan, recommended
-  commands, and an implementation checklist.
+  a structured experiment-tracking plan, prior experiment context when a nearby
+  ledger exists, a follow-up research plan, recommended commands, and an
+  implementation checklist.
 - `labmate dataset-inspect <path>` inspects local CSV/TSV files, gzipped
   CSV/TSV files, zip archives, and Kaggle-style folders containing
   train/test/submission files, including sample-submission row-count alignment.
@@ -125,7 +126,8 @@ uv run labmate github-find-examples "sklearn pipeline tabular classification" --
 The `research_plan` field contains ordered tool calls with arguments, purpose,
 and evidence to extract. The implementation plan should cite the returned URLs,
 dataset warnings, benchmark metric/protocol assumptions, modeling-plan choices,
-experiment-tracking plan, and relevant examples before proposing changes.
+experiment-tracking plan, prior experiments, and relevant examples before
+proposing changes.
 
 ## Repository Layout
 

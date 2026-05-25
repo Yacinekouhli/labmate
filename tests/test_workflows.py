@@ -131,12 +131,15 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
             "Do not use public leaderboard feedback as the only validation signal.",
         ],
     }
+    assert result["prior_experiments"]["status"] == "not_found"
+    assert result["prior_experiments"]["summary"] is None
     assert all(
         warning["message"] != "No obvious target column detected from column names."
         for warning in result["dataset_summary"]["warnings"]
     )
     assert [action["tool"] for action in result["research_plan"]] == [
         "dataset_inspect",
+        "experiment_summary",
         "benchmark_lookup",
         "literature_search",
         "citation_graph",
@@ -156,7 +159,9 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
             "dataset warnings",
         ],
     }
-    assert result["research_plan"][1]["arguments"] == {
+    assert result["research_plan"][1]["tool"] == "experiment_summary"
+    assert result["research_plan"][1]["arguments"] == {"path": str(tmp_path)}
+    assert result["research_plan"][2]["arguments"] == {
         "query": "tabular classification auc kaggle",
         "max_results": 1,
     }
@@ -164,6 +169,7 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
         action["command"] for action in result["research_plan"]
     ]
     assert result["recommended_next_commands"][0].startswith("labmate dataset-inspect ")
+    assert any("experiment-summary" in command for command in result["recommended_next_commands"])
     assert any("literature-search" in command for command in result["recommended_next_commands"])
     assert any(
         "sample submission columns target" in item for item in result["implementation_checklist"]
@@ -206,6 +212,45 @@ def test_research_brief_respects_task_hint_and_benchmark_query(tmp_path) -> None
     )
     assert result["experiment_tracking_plan"]["score_direction"] == "minimize"
     assert result["experiment_tracking_plan"]["validation_strategy"] == "not_ready"
+
+
+def test_research_brief_surfaces_prior_experiments_from_project_root(tmp_path) -> None:
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "train.csv").write_text(
+        "id,feature,target\n1,10,0\n2,11,1\n",
+        encoding="utf-8",
+    )
+    (data / "test.csv").write_text(
+        "id,feature\n3,12\n4,13\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "results.tsv").write_text(
+        (
+            "timestamp_utc\tcommit\texperiment\tmodel_family\tfeatures\tvalidation_strategy\t"
+            "metric\tscore\tscore_direction\tstatus\tartifacts\tnotes\n"
+            "2026-05-25T10:00:00Z\taaa111\tdummy\tdummy\tbase\tstratified_k_fold\t"
+            "roc_auc\t0.500\tmaximize\tkeep\tbaseline.json\tfloor\n"
+            "2026-05-25T11:00:00Z\tbbb222\tlinear\tlogistic_regression\tbase\t"
+            "stratified_k_fold\troc_auc\t0.620\tmaximize\tkeep\tlinear.pkl\tbest simple\n"
+        ),
+        encoding="utf-8",
+    )
+
+    result = build_research_brief(data, max_benchmarks=1)
+
+    assert result["prior_experiments"]["status"] == "found"
+    assert result["prior_experiments"]["recommended_next_path"] == str(tmp_path)
+    assert result["prior_experiments"]["summary"]["ledger"]["path"] == "results.tsv"
+    assert result["prior_experiments"]["summary"]["best_run"]["experiment"] == "linear"
+    assert result["prior_experiments"]["summary"]["metric_summary"] == {
+        "primary_metric": "roc_auc",
+        "score_direction": "maximize",
+        "scored_run_count": 2,
+        "metrics_seen": {"roc_auc": 2},
+    }
+    assert result["research_plan"][1]["command"] == (f"labmate experiment-summary {tmp_path}")
+    assert result["research_plan"][1]["arguments"] == {"path": str(tmp_path)}
 
 
 def test_research_brief_uses_provided_fold_column_for_validation(tmp_path) -> None:

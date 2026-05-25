@@ -9,6 +9,7 @@ from typing import Any
 
 from labmate.tools.benchmarks import BenchmarkLookupResult, LocalBenchmarkBackend, lookup_benchmarks
 from labmate.tools.datasets import inspect_local_dataset
+from labmate.tools.experiments import summarize_experiments
 
 METRIC_PATTERNS = (
     ("roc_auc", re.compile(r"\b(?:roc[-_ ]?auc|auc)\b", re.IGNORECASE)),
@@ -51,11 +52,13 @@ def build_research_brief(
         backend=LocalBenchmarkBackend(),
         max_results=max_benchmarks,
     )
+    prior_experiments = _prior_experiments(path)
     research_plan = _research_plan(
         path=path,
         benchmark_query=query,
         inferred_task=inferred_task,
         max_benchmarks=max_benchmarks,
+        prior_experiments=prior_experiments,
     )
     modeling_plan = _modeling_plan(dataset_summary, inferred_task, benchmarks)
 
@@ -73,6 +76,7 @@ def build_research_brief(
             dataset_summary,
             modeling_plan,
         ),
+        "prior_experiments": prior_experiments,
         "research_plan": research_plan,
         "recommended_next_commands": _recommended_next_commands(research_plan),
         "implementation_checklist": _implementation_checklist(dataset_summary, benchmarks),
@@ -664,6 +668,62 @@ def _experiment_keep_criteria(
     return criteria
 
 
+def _prior_experiments(path: str | Path) -> dict[str, Any]:
+    search_paths = _experiment_search_paths(path)
+    summaries = [summarize_experiments(search_path) for search_path in search_paths]
+    found = next(
+        (summary for summary in summaries if summary["status"] != "not_found"),
+        None,
+    )
+    if found is None:
+        return {
+            "status": "not_found",
+            "search_paths": [str(search_path) for search_path in search_paths],
+            "summary": None,
+            "recommended_next_path": str(search_paths[0]),
+            "recommended_next_command": _command(
+                "labmate",
+                "experiment-summary",
+                str(search_paths[0]),
+            ),
+        }
+
+    return {
+        "status": "found",
+        "search_paths": [str(search_path) for search_path in search_paths],
+        "summary": {
+            "path": found["path"],
+            "ledger": found["ledger"],
+            "metric_summary": found["metric_summary"],
+            "best_run": found["best_run"],
+            "latest_run": found["latest_run"],
+            "status_counts": found["status_counts"],
+            "warnings": found["warnings"],
+            "recommended_next_actions": found["recommended_next_actions"],
+        },
+        "recommended_next_path": str(Path(str(found["path"]))),
+        "recommended_next_command": _command(
+            "labmate",
+            "experiment-summary",
+            str(Path(str(found["path"]))),
+        ),
+    }
+
+
+def _experiment_search_paths(path: str | Path) -> list[Path]:
+    resolved = Path(path).expanduser().resolve()
+    candidates = [resolved if resolved.is_dir() else resolved.parent]
+    parent = candidates[0].parent
+    if parent != candidates[0]:
+        candidates.append(parent)
+
+    deduped: list[Path] = []
+    for candidate in candidates:
+        if candidate not in deduped:
+            deduped.append(candidate)
+    return deduped
+
+
 def _metric_hints(dataset_summary: dict[str, Any]) -> list[dict[str, str]]:
     hints: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
@@ -693,6 +753,7 @@ def _research_plan(
     benchmark_query: str,
     inferred_task: dict[str, Any],
     max_benchmarks: int,
+    prior_experiments: dict[str, Any],
 ) -> list[dict[str, Any]]:
     dataset_path = str(path)
     task_type = str(inferred_task["task_type"])
@@ -715,6 +776,19 @@ def _research_plan(
         ),
         _research_action(
             priority=2,
+            tool="experiment_summary",
+            command=str(prior_experiments["recommended_next_command"]),
+            arguments={"path": str(prior_experiments["recommended_next_path"])},
+            purpose="Check existing run ledger before proposing new experiments.",
+            evidence_to_extract=(
+                "best run",
+                "latest run",
+                "metric direction",
+                "ledger warnings",
+            ),
+        ),
+        _research_action(
+            priority=3,
             tool="benchmark_lookup",
             command=_command(
                 "labmate", "benchmark-lookup", benchmark_query, "--max-results", str(max_benchmarks)
@@ -730,7 +804,7 @@ def _research_plan(
             ),
         ),
         _research_action(
-            priority=3,
+            priority=4,
             tool="literature_search",
             command=_command(
                 "labmate",
@@ -745,7 +819,7 @@ def _research_plan(
             evidence_to_extract=("paper URLs", "method names", "relevance signals"),
         ),
         _research_action(
-            priority=4,
+            priority=5,
             tool="citation_graph",
             command=_command("labmate", "citation-graph", "arxiv:1603.02754", "--max-results", "3"),
             arguments={"paper_id": "arxiv:1603.02754", "max_results": 3},
@@ -753,7 +827,7 @@ def _research_plan(
             evidence_to_extract=("related papers", "citation edges"),
         ),
         _research_action(
-            priority=5,
+            priority=6,
             tool="docs_fetch",
             command=_command("labmate", "docs-fetch", docs_query, "--max-results", "3"),
             arguments={"query": docs_query, "max_results": 3},
@@ -762,7 +836,7 @@ def _research_plan(
             evidence_to_extract=("official docs URLs", "API names", "version caveats"),
         ),
         _research_action(
-            priority=6,
+            priority=7,
             tool="github_find_examples",
             command=_command("labmate", "github-find-examples", github_query, "--max-results", "3"),
             arguments={"query": github_query, "max_results": 3},

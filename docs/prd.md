@@ -47,8 +47,9 @@ The first release should include:
 - experiment summary over existing local run ledgers
 - literature search with arXiv-backed results
 - first-pass research brief over local datasets, benchmark context, and ordered
-  follow-up research actions, including provided validation/split-column guidance
-  sample-submission format, and an experiment-tracking plan
+  follow-up research actions, including provided validation/split-column
+  guidance, sample-submission format, prior experiment context, and an
+  experiment-tracking plan
 - dataset inspection with plain/gzipped CSV and TSV support, zip archive
   inspection, Kaggle-style split hints, sample-submission row-count alignment,
   and target-distribution hints

@@ -30,7 +30,8 @@ Run the relevant Labmate commands before editing model code.
 - First-pass brief:
   - Command: `labmate research-brief <dataset-path>`
   - Capture: inferred task, dataset warnings, benchmark URLs, recommended next
-    commands, experiment-tracking plan, and implementation checklist.
+    commands, prior experiments, experiment-tracking plan, and implementation
+    checklist.
 - Dataset schema:
   - Command: `labmate dataset-inspect <dataset-path>`
   - Capture: train/test files, target hints, shared feature columns, missingness,
