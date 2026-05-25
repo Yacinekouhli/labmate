@@ -38,6 +38,8 @@ Working today:
 - `labmate dataset-inspect <path>` inspects local CSV/TSV files and Kaggle-style
   folders containing `train.csv`, `test.csv`, and `sample_submission.csv`.
 - `labmate literature-search <query>` uses the arXiv backend.
+- `labmate benchmark-lookup <query>` searches a curated local benchmark catalog
+  for task, metric, protocol, pitfalls, and baseline hints.
 - `labmate docs-fetch <query>` searches an official-docs catalog, and
   `--url <docs-url>` fetches exact framework documentation pages.
 - `labmate github-find-examples <query>` finds candidate public GitHub
@@ -48,8 +50,10 @@ Working today:
 
 Still stubbed or limited:
 
-- `labmate citation-graph <paper-id>` and `labmate benchmark-lookup <query>`
-  return structured not-implemented/backend-unavailable failures.
+- `labmate citation-graph <paper-id>` returns a structured backend-unavailable
+  failure until a remote citation backend is added.
+- `benchmark-lookup --backend papers_with_code` and `--backend openml` return
+  structured backend-unavailable failures; the default local catalog works.
 - `github-find-examples` uses unauthenticated repository search; file-level code
   snippets need a future authenticated code-search backend.
 

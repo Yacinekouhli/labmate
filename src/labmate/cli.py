@@ -90,8 +90,8 @@ def _build_parser() -> argparse.ArgumentParser:
     benchmark.add_argument("query", help="Benchmark, task, metric, or dataset query.")
     benchmark.add_argument(
         "--backend",
-        default="papers_with_code",
-        help="Benchmark backend. Defaults to Papers With Code.",
+        default="local",
+        help="Benchmark backend. Defaults to the local catalog.",
     )
     benchmark.add_argument("--max-results", type=int, default=10)
 

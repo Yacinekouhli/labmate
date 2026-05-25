@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from labmate.contracts import ExitCode, JsonObject, JsonValue, ToolResponse, failure, success
+from labmate.tools.benchmarks import LocalBenchmarkBackend, lookup_benchmarks
 from labmate.tools.datasets import DatasetInspectionError, inspect_local_dataset
 from labmate.tools.docs import OfficialDocsBackend, fetch_docs
 from labmate.tools.github import GitHubRepositorySearchBackend, find_github_examples
@@ -230,6 +231,40 @@ def _citation_graph_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
     )
 
 
+def _benchmark_lookup_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
+    try:
+        query = _as_str(arguments, "query")
+        backend_name = _as_optional_str(arguments, "backend", "local")
+        max_results = _as_int(arguments, "max_results", 10)
+        if backend_name != "local":
+            return failure(
+                "benchmark_lookup",
+                code="backend_not_implemented",
+                message=f"Benchmark backend {backend_name!r} is not implemented yet.",
+                exit_code=ExitCode.BACKEND_UNAVAILABLE,
+                details={"backend": backend_name},
+            )
+
+        result = lookup_benchmarks(
+            query,
+            backend=LocalBenchmarkBackend(),
+            max_results=max_results,
+        )
+    except ValueError as exc:
+        return failure(
+            "benchmark_lookup",
+            code="invalid_arguments",
+            message=str(exc),
+            exit_code=ExitCode.USAGE_ERROR,
+        )
+
+    return success(
+        "benchmark_lookup",
+        result.to_dict(),
+        metadata={"backend": backend_name},
+    )
+
+
 def _docs_fetch_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
     backend_name = "official_docs"
     try:
@@ -350,6 +385,7 @@ DATASET_BACKENDS = ("local", "huggingface", "kaggle", "openml", "uci")
 LITERATURE_BACKENDS = ("arxiv", "semantic_scholar", "openalex", "core")
 CITATION_BACKENDS = ("semantic_scholar", "openalex")
 DOCS_BACKENDS = ("official_docs", "huggingface", "local")
+BENCHMARK_BACKENDS = ("local", "papers_with_code", "openml")
 
 _TOOLS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
@@ -431,11 +467,11 @@ _TOOLS: tuple[ToolDefinition, ...] = (
         name="benchmark_lookup",
         description="Find benchmark tasks, datasets, metrics, papers, code, and results.",
         read_only=True,
-        backends=("papers_with_code", "openml", "local"),
+        backends=BENCHMARK_BACKENDS,
         input_schema=_object_schema(
             {
                 "query": _string_schema("Benchmark, task, metric, or dataset query."),
-                "backend": _backend_schema(("papers_with_code", "openml", "local")),
+                "backend": _backend_schema(BENCHMARK_BACKENDS),
                 "max_results": _integer_schema(
                     "Maximum benchmark results to return.",
                     minimum=1,
@@ -445,7 +481,7 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             },
             required=("query",),
         ),
-        handler=_not_implemented_handler("benchmark_lookup"),
+        handler=_benchmark_lookup_handler,
     ),
     ToolDefinition(
         name="docs_fetch",

@@ -54,14 +54,25 @@ def test_docs_fetch_command_returns_catalog_results(capsys) -> None:
     assert payload["result"]["documents"][0]["provenance_url"].startswith("https://")
 
 
-def test_benchmark_lookup_command_returns_stub_contract_failure(capsys) -> None:
+def test_benchmark_lookup_command_returns_local_catalog_results(capsys) -> None:
     exit_code = main(["benchmark-lookup", "tabular classification"])
+    payload = _json_output(capsys)
+
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["tool"] == "benchmark_lookup"
+    assert payload["result"]["benchmarks"]
+    assert payload["result"]["benchmarks"][0]["provenance_url"].startswith("https://")
+
+
+def test_benchmark_lookup_command_reports_unimplemented_remote_backend(capsys) -> None:
+    exit_code = main(["benchmark-lookup", "tabular", "--backend", "papers_with_code"])
     payload = _json_output(capsys)
 
     assert exit_code != 0
     assert payload["ok"] is False
     assert payload["tool"] == "benchmark_lookup"
-    assert payload["error"]["code"] == "tool_not_implemented"
+    assert payload["error"]["code"] == "backend_not_implemented"
     assert payload["error"]["details"] == {"backend": "papers_with_code"}
 
 
