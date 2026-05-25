@@ -1,4 +1,5 @@
 import gzip
+import zipfile
 
 from labmate.tools.datasets import inspect_local_dataset, inspect_tabular_file
 
@@ -157,6 +158,36 @@ def test_inspect_local_dataset_directory_supports_gzipped_kaggle_splits(tmp_path
     assert result["relations"]["train_test_schema_alignment"]["common_feature_columns"] == [
         "feature"
     ]
+    assert result["warnings"] == []
+
+
+def test_inspect_local_dataset_supports_zip_archive_with_kaggle_splits(tmp_path) -> None:
+    archive_path = tmp_path / "competition.zip"
+    with zipfile.ZipFile(archive_path, mode="w") as archive:
+        archive.writestr("evaluation.md", "Submissions are scored with log loss.")
+        archive.writestr("train.csv", "id,feature,target\n1,10,0\n2,11,1\n")
+        archive.writestr("test.csv", "id,feature\n3,12\n4,13\n")
+        archive.writestr("sample_submission.csv", "id,target\n3,0\n4,0\n")
+
+    result = inspect_local_dataset(archive_path)
+
+    assert result["kind"] == "local_dataset_archive"
+    assert result["path"] == str(archive_path)
+    assert [file_info["file_name"] for file_info in result["files"]] == [
+        "sample_submission.csv",
+        "test.csv",
+        "train.csv",
+    ]
+    assert result["files"][2]["path"] == f"{archive_path}!train.csv"
+    assert result["files"][2]["archive_path"] == str(archive_path)
+    assert result["files"][2]["archive_member"] == "train.csv"
+    assert result["relations"]["train_file"] == "train.csv"
+    assert result["relations"]["test_file"] == "test.csv"
+    assert result["relations"]["sample_submission_file"] == "sample_submission.csv"
+    assert result["relations"]["likely_target_columns"] == ["target"]
+    assert result["context_files"][0]["file_name"] == "evaluation.md"
+    assert result["context_files"][0]["kind"] == "competition_rules"
+    assert result["context_files"][0]["archive_member"] == "evaluation.md"
     assert result["warnings"] == []
 
 

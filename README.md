@@ -74,8 +74,8 @@ Working today:
   a baseline modeling plan, a structured follow-up research plan, recommended
   commands, and an implementation checklist.
 - `labmate dataset-inspect <path>` inspects local CSV/TSV files, gzipped
-  CSV/TSV files, and Kaggle-style folders containing train/test/submission
-  files.
+  CSV/TSV files, zip archives, and Kaggle-style folders containing
+  train/test/submission files.
 - `labmate literature-search <query>` uses the arXiv backend.
 - `labmate citation-graph <paper-id>` uses a local ML paper corpus for citation
   context around common tabular references such as `arxiv:1603.02754`.

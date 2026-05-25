@@ -76,7 +76,7 @@ def build_research_brief(
 
 
 def _dataset_summary(dataset: dict[str, Any]) -> dict[str, Any]:
-    if dataset["kind"] == "local_dataset_directory":
+    if dataset["kind"] in {"local_dataset_directory", "local_dataset_archive"}:
         files = [_file_summary(file_info) for file_info in dataset["files"]]
         relations = dataset.get("relations", {})
         files = _suppress_expected_file_warnings(files, relations)

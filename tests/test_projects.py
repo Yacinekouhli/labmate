@@ -1,4 +1,5 @@
 import gzip
+import zipfile
 
 from labmate.tools.projects import scan_local_project
 
@@ -55,7 +56,7 @@ def test_scan_local_project_reports_missing_dataset_candidates(tmp_path) -> None
     assert result["dataset_candidates"] == []
     assert result["recommended_next_commands"] == ["labmate tools"]
     assert result["warnings"] == [
-        "No local CSV/TSV dataset candidates were found within scan limits."
+        "No local CSV/TSV or zip dataset candidates were found within scan limits."
     ]
 
 
@@ -82,3 +83,26 @@ def test_scan_local_project_finds_gzipped_kaggle_dataset(tmp_path) -> None:
         "test": "test.csv.gz",
         "train": "train.csv.gz",
     }
+
+
+def test_scan_local_project_finds_zip_dataset_candidate(tmp_path) -> None:
+    archive_path = tmp_path / "competition.zip"
+    with zipfile.ZipFile(archive_path, mode="w") as archive:
+        archive.writestr("train.csv", "id,target\n1,0\n")
+        archive.writestr("test.csv", "id\n2\n")
+
+    result = scan_local_project(tmp_path)
+
+    assert result["dataset_candidates"][0]["path"] == "competition.zip"
+    assert result["dataset_candidates"][0]["absolute_path"] == str(archive_path)
+    assert result["dataset_candidates"][0]["kind"] == "dataset_archive"
+    assert result["dataset_candidates"][0]["files"] == ["competition.zip"]
+    assert result["dataset_candidates"][0]["roles"] == {}
+    assert result["dataset_candidates"][0]["reasons"] == [
+        "zip archive; run dataset-inspect to inspect members"
+    ]
+    assert result["recommended_next_commands"] == [
+        "labmate tools",
+        f"labmate research-brief {archive_path}",
+        f"labmate dataset-inspect {archive_path}",
+    ]

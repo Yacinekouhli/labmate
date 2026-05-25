@@ -1,3 +1,5 @@
+import zipfile
+
 from labmate.tools.workflows import build_research_brief
 
 
@@ -157,3 +159,31 @@ def test_research_brief_warns_about_imbalanced_classification_target(tmp_path) -
         "rate": 0.9,
     }
     assert any("imbalanced" in warning for warning in result["warnings"])
+
+
+def test_research_brief_supports_zip_archive_dataset(tmp_path) -> None:
+    archive_path = tmp_path / "competition.zip"
+    with zipfile.ZipFile(archive_path, mode="w") as archive:
+        archive.writestr("evaluation.md", "Submissions are scored with ROC AUC.")
+        archive.writestr("train.csv", "id,feature,target\n1,10,0\n2,11,1\n")
+        archive.writestr("test.csv", "id,feature\n3,12\n4,13\n")
+        archive.writestr("sample_submission.csv", "id,target\n3,0\n4,0\n")
+
+    result = build_research_brief(archive_path, max_benchmarks=1)
+
+    assert result["dataset_summary"]["kind"] == "local_dataset_archive"
+    assert result["dataset_summary"]["relations"]["train_file"] == "train.csv"
+    assert result["dataset_summary"]["context_files"] == [
+        {
+            "file_name": "evaluation.md",
+            "kind": "competition_rules",
+            "size_bytes": 36,
+            "snippet": "Submissions are scored with ROC AUC.",
+            "json_keys": [],
+        }
+    ]
+    assert result["evidence"]["target_columns"] == ["target"]
+    assert result["modeling_plan"]["readiness"] == "ready_for_baseline"
+    assert result["recommended_next_commands"][0] == (
+        f"labmate dataset-inspect {archive_path} --sample-size 5"
+    )

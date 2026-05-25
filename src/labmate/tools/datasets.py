@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import csv
 import gzip
+import io
 import json
+import zipfile
 from collections import Counter
 from collections.abc import Iterable
 from datetime import datetime
@@ -12,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 SUPPORTED_SUFFIXES = {".csv", ".tsv"}
+SUPPORTED_ARCHIVE_SUFFIXES = {".zip"}
 DEFAULT_SAMPLE_SIZE = 5
 DEFAULT_MAX_PROFILE_ROWS = 250_000
 MAX_TRACKED_UNIQUE_VALUES = 1_000
@@ -68,6 +71,12 @@ def inspect_local_dataset(
             sample_size=sample_size,
             max_profile_rows=max_profile_rows,
         )
+    if dataset_path.is_file() and _is_supported_archive_path(dataset_path):
+        return inspect_zip_archive(
+            dataset_path,
+            sample_size=sample_size,
+            max_profile_rows=max_profile_rows,
+        )
     return inspect_tabular_file(
         dataset_path,
         sample_size=sample_size,
@@ -111,6 +120,61 @@ def inspect_local_directory(
     }
 
 
+def inspect_zip_archive(
+    path: str | Path,
+    *,
+    sample_size: int = DEFAULT_SAMPLE_SIZE,
+    max_profile_rows: int = DEFAULT_MAX_PROFILE_ROWS,
+) -> dict[str, Any]:
+    """Inspect CSV/TSV members in a local zip archive without extraction."""
+
+    archive_path = Path(path)
+    if not archive_path.is_file():
+        raise DatasetInspectionError(f"Not a file: {archive_path}")
+    if not _is_supported_archive_path(archive_path):
+        raise DatasetInspectionError(f"Unsupported dataset archive type: {archive_path.name}")
+    if sample_size < 0:
+        raise DatasetInspectionError("sample_size must be non-negative")
+    if max_profile_rows <= 0:
+        raise DatasetInspectionError("max_profile_rows must be positive")
+
+    try:
+        with zipfile.ZipFile(archive_path) as archive:
+            members = sorted(
+                (member for member in archive.infolist() if not member.is_dir()),
+                key=lambda member: member.filename.lower(),
+            )
+            tabular_members = [
+                member for member in members if _is_supported_tabular_name(member.filename)
+            ]
+            files = [
+                _inspect_archive_member(
+                    archive_path,
+                    archive,
+                    member,
+                    sample_size=sample_size,
+                    max_profile_rows=max_profile_rows,
+                )
+                for member in tabular_members
+            ]
+            if not files:
+                raise DatasetInspectionError(
+                    f"No supported CSV/TSV members found in archive: {archive_path}"
+                )
+
+            relations = _directory_relations(files)
+            return {
+                "kind": "local_dataset_archive",
+                "path": str(archive_path),
+                "files": files,
+                "context_files": _archive_context_files(archive_path, archive, members),
+                "relations": relations,
+                "warnings": _directory_warnings(files, relations),
+            }
+    except zipfile.BadZipFile as exc:
+        raise DatasetInspectionError(f"Invalid zip archive: {archive_path}") from exc
+
+
 def inspect_tabular_file(
     path: str | Path,
     *,
@@ -131,39 +195,94 @@ def inspect_tabular_file(
 
     delimiter = _delimiter_for_path(file_path)
     with _open_tabular_file(file_path) as handle:
-        reader = csv.DictReader(handle, delimiter=delimiter)
-        fieldnames = reader.fieldnames
-        if not fieldnames:
-            raise DatasetInspectionError(f"No header row found in: {file_path}")
+        return _inspect_tabular_handle(
+            handle,
+            path_label=str(file_path),
+            file_name=file_path.name,
+            tabular_suffix=_tabular_suffix(file_path),
+            compression=_compression(file_path),
+            delimiter=delimiter,
+            sample_size=sample_size,
+            max_profile_rows=max_profile_rows,
+        )
 
-        columns = [_new_column_profile(name, position) for position, name in enumerate(fieldnames)]
-        sample_rows: list[dict[str, str]] = []
-        row_count = 0
-        truncated = False
 
-        for row in reader:
-            if row_count >= max_profile_rows:
-                truncated = True
-                break
+def _inspect_archive_member(
+    archive_path: Path,
+    archive: zipfile.ZipFile,
+    member: zipfile.ZipInfo,
+    *,
+    sample_size: int,
+    max_profile_rows: int,
+) -> dict[str, Any]:
+    member_name = member.filename
+    compression = _compression_from_name(member_name)
+    delimiter = _delimiter_for_name(member_name)
+    with archive.open(member) as raw_handle:
+        binary_handle = gzip.GzipFile(fileobj=raw_handle) if compression == "gzip" else raw_handle
+        with io.TextIOWrapper(binary_handle, encoding="utf-8-sig", newline="") as handle:
+            return _inspect_tabular_handle(
+                handle,
+                path_label=f"{archive_path}!{member_name}",
+                file_name=member_name,
+                tabular_suffix=_tabular_suffix_from_name(member_name),
+                compression=compression,
+                delimiter=delimiter,
+                sample_size=sample_size,
+                max_profile_rows=max_profile_rows,
+                archive_path=str(archive_path),
+                archive_member=member_name,
+                size_bytes=member.file_size,
+            )
 
-            normalized_row = {name: row.get(name, "") for name in fieldnames}
-            if len(sample_rows) < sample_size:
-                sample_rows.append(normalized_row)
 
-            for column in columns:
-                _update_column_profile(column, normalized_row.get(column["name"], ""))
-            row_count += 1
+def _inspect_tabular_handle(
+    handle,
+    *,
+    path_label: str,
+    file_name: str,
+    tabular_suffix: str,
+    compression: str | None,
+    delimiter: str,
+    sample_size: int,
+    max_profile_rows: int,
+    archive_path: str | None = None,
+    archive_member: str | None = None,
+    size_bytes: int | None = None,
+) -> dict[str, Any]:
+    reader = csv.DictReader(handle, delimiter=delimiter)
+    fieldnames = reader.fieldnames
+    if not fieldnames:
+        raise DatasetInspectionError(f"No header row found in: {path_label}")
+
+    columns = [_new_column_profile(name, position) for position, name in enumerate(fieldnames)]
+    sample_rows: list[dict[str, str]] = []
+    row_count = 0
+    truncated = False
+
+    for row in reader:
+        if row_count >= max_profile_rows:
+            truncated = True
+            break
+
+        normalized_row = {name: row.get(name, "") for name in fieldnames}
+        if len(sample_rows) < sample_size:
+            sample_rows.append(normalized_row)
+
+        for column in columns:
+            _update_column_profile(column, normalized_row.get(column["name"], ""))
+        row_count += 1
 
     finalized_columns = [_finalize_column_profile(column, row_count) for column in columns]
-    target_hints = _target_column_hints(finalized_columns, file_path.name)
+    target_hints = _target_column_hints(finalized_columns, file_name)
     leakage_hints = _leakage_risk_hints(finalized_columns)
 
-    return {
+    result = {
         "kind": "tabular_file",
-        "path": str(file_path),
-        "file_name": file_path.name,
-        "format": _tabular_suffix(file_path).removeprefix("."),
-        "compression": _compression(file_path),
+        "path": path_label,
+        "file_name": file_name,
+        "format": tabular_suffix.removeprefix("."),
+        "compression": compression,
         "delimiter": delimiter,
         "row_count": None if truncated else row_count,
         "row_count_status": "bounded" if truncated else "exact",
@@ -175,10 +294,21 @@ def inspect_tabular_file(
         "leakage_risk_hints": leakage_hints,
         "warnings": _file_warnings(finalized_columns, target_hints, truncated),
     }
+    if archive_path is not None:
+        result["archive_path"] = archive_path
+    if archive_member is not None:
+        result["archive_member"] = archive_member
+    if size_bytes is not None:
+        result["size_bytes"] = size_bytes
+    return result
 
 
 def _delimiter_for_path(path: Path) -> str:
-    if _tabular_suffix(path) == ".tsv":
+    return _delimiter_for_name(path.name)
+
+
+def _delimiter_for_name(name: str) -> str:
+    if _tabular_suffix_from_name(name) == ".tsv":
         return "\t"
     return ","
 
@@ -190,18 +320,34 @@ def _open_tabular_file(path: Path):
 
 
 def _is_supported_tabular_path(path: Path) -> bool:
-    return _tabular_suffix(path) in SUPPORTED_SUFFIXES
+    return _is_supported_tabular_name(path.name)
+
+
+def _is_supported_tabular_name(name: str) -> bool:
+    return _tabular_suffix_from_name(name) in SUPPORTED_SUFFIXES
+
+
+def _is_supported_archive_path(path: Path) -> bool:
+    return path.suffix.lower() in SUPPORTED_ARCHIVE_SUFFIXES
 
 
 def _tabular_suffix(path: Path) -> str:
-    suffixes = [suffix.lower() for suffix in path.suffixes]
+    return _tabular_suffix_from_name(path.name)
+
+
+def _tabular_suffix_from_name(name: str) -> str:
+    suffixes = [suffix.lower() for suffix in Path(name).suffixes]
     if suffixes[-2:] in ([".csv", ".gz"], [".tsv", ".gz"]):
         return suffixes[-2]
-    return path.suffix.lower()
+    return Path(name).suffix.lower()
 
 
 def _compression(path: Path) -> str | None:
-    return "gzip" if path.suffix.lower() == ".gz" else None
+    return _compression_from_name(path.name)
+
+
+def _compression_from_name(name: str) -> str | None:
+    return "gzip" if Path(name).suffix.lower() == ".gz" else None
 
 
 def _new_column_profile(name: str, position: int) -> dict[str, Any]:
@@ -576,7 +722,27 @@ def _directory_context_files(directory: Path) -> list[dict[str, Any]]:
     return context_files
 
 
+def _archive_context_files(
+    archive_path: Path,
+    archive: zipfile.ZipFile,
+    members: list[zipfile.ZipInfo],
+) -> list[dict[str, Any]]:
+    context_files = []
+    for member in members:
+        if not _is_context_name(member.filename):
+            continue
+        context_files.append(_archive_context_file_summary(archive_path, archive, member))
+        if len(context_files) >= MAX_CONTEXT_FILES:
+            break
+    return context_files
+
+
 def _is_context_file(path: Path) -> bool:
+    return _is_context_name(path.name)
+
+
+def _is_context_name(name: str) -> bool:
+    path = Path(name)
     suffix = path.suffix.lower()
     if suffix not in CONTEXT_FILE_SUFFIXES:
         return False
@@ -589,7 +755,7 @@ def _context_file_summary(path: Path) -> dict[str, Any]:
     summary: dict[str, Any] = {
         "file_name": path.name,
         "path": str(path),
-        "kind": _context_file_kind(path),
+        "kind": _context_file_kind(path.name),
         "size_bytes": path.stat().st_size,
         "snippet": snippet,
     }
@@ -598,16 +764,48 @@ def _context_file_summary(path: Path) -> dict[str, Any]:
     return summary
 
 
+def _archive_context_file_summary(
+    archive_path: Path,
+    archive: zipfile.ZipFile,
+    member: zipfile.ZipInfo,
+) -> dict[str, Any]:
+    snippet = _read_archive_context_snippet(archive, member)
+    summary: dict[str, Any] = {
+        "file_name": member.filename,
+        "path": f"{archive_path}!{member.filename}",
+        "kind": _context_file_kind(member.filename),
+        "size_bytes": member.file_size,
+        "snippet": snippet,
+        "archive_path": str(archive_path),
+        "archive_member": member.filename,
+    }
+    if Path(member.filename).suffix.lower() == ".json":
+        summary["json_keys"] = _json_keys(snippet)
+    return summary
+
+
 def _read_context_snippet(path: Path) -> str:
     with path.open(encoding="utf-8", errors="replace") as handle:
         text = handle.read(MAX_CONTEXT_SNIPPET_CHARS + 1)
+    return _compact_context_snippet(text)
+
+
+def _read_archive_context_snippet(archive: zipfile.ZipFile, member: zipfile.ZipInfo) -> str:
+    with archive.open(member) as raw_handle:
+        with io.TextIOWrapper(raw_handle, encoding="utf-8", errors="replace") as handle:
+            text = handle.read(MAX_CONTEXT_SNIPPET_CHARS + 1)
+    return _compact_context_snippet(text)
+
+
+def _compact_context_snippet(text: str) -> str:
     text = " ".join(text.split())
     if len(text) > MAX_CONTEXT_SNIPPET_CHARS:
         return text[:MAX_CONTEXT_SNIPPET_CHARS].rstrip() + "..."
     return text
 
 
-def _context_file_kind(path: Path) -> str:
+def _context_file_kind(name: str) -> str:
+    path = Path(name)
     stem = _normalize_name(path.stem)
     if stem in {"data_description", "description"}:
         return "data_description"

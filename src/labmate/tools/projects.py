@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 DATASET_SUFFIXES = {".csv", ".tsv"}
+ARCHIVE_SUFFIXES = {".zip"}
 NOTEBOOK_SUFFIX = ".ipynb"
 SCRIPT_SUFFIXES = {".py", ".R", ".r"}
 IGNORE_DIRS = {
@@ -219,14 +220,19 @@ def _directory_dataset_candidate(
 
 
 def _file_dataset_candidate(root: Path, file_path: Path) -> dict[str, Any]:
+    is_archive = _is_supported_dataset_archive(file_path)
     return {
         "path": _relative_path(root, file_path),
         "absolute_path": str(file_path),
-        "kind": "tabular_file",
-        "score": 2,
+        "kind": "dataset_archive" if is_archive else "tabular_file",
+        "score": 3 if is_archive else 2,
         "files": [_relative_path(root, file_path)],
         "roles": {},
-        "reasons": ["single CSV/TSV file"],
+        "reasons": [
+            "zip archive; run dataset-inspect to inspect members"
+            if is_archive
+            else "single CSV/TSV file"
+        ],
         "recommended_command": _command("labmate", "research-brief", str(file_path)),
     }
 
@@ -242,7 +248,11 @@ def _dataset_roles(files: list[Path]) -> dict[str, str]:
 
 
 def _is_supported_dataset_file(path: Path) -> bool:
-    return _tabular_suffix(path) in DATASET_SUFFIXES
+    return _tabular_suffix(path) in DATASET_SUFFIXES or _is_supported_dataset_archive(path)
+
+
+def _is_supported_dataset_archive(path: Path) -> bool:
+    return path.suffix.lower() in ARCHIVE_SUFFIXES
 
 
 def _tabular_suffix(path: Path) -> str:
@@ -368,7 +378,7 @@ def _recommended_next_commands(candidates: list[dict[str, Any]]) -> list[str]:
 def _scan_warnings(candidates: list[dict[str, Any]], truncated: bool) -> list[str]:
     warnings = []
     if not candidates:
-        warnings.append("No local CSV/TSV dataset candidates were found within scan limits.")
+        warnings.append("No local CSV/TSV or zip dataset candidates were found within scan limits.")
     if truncated:
         warnings.append(
             "Project scan hit max_entries; rerun with a higher limit for full coverage."
