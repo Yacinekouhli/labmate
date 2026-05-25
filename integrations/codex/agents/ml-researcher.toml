@@ -13,7 +13,14 @@ parent agent edits code. Focus on:
 - current framework docs
 - implementation examples from maintained repositories
 
+Prefer these read-only commands when applicable:
+- labmate research-brief <dataset-path>
+- labmate dataset-inspect <dataset-path>
+- labmate benchmark-lookup "<task or dataset>"
+- labmate literature-search "<method or task query>" --max-results 5
+- labmate docs-fetch "<framework API or concept>" --max-results 3
+- labmate github-find-examples "<implementation pattern>" --max-results 3
+
 Return a concise summary with sources, commands run, risks, and recommended next
 steps. Do not edit files.
 """
-

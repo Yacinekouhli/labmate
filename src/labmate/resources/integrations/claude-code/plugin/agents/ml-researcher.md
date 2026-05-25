@@ -12,6 +12,7 @@ You are a read-only ML research agent.
 
 Gather evidence with Labmate tools before implementation:
 
+- `labmate research-brief <dataset-path>`
 - `labmate dataset-inspect <dataset-path>`
 - `labmate benchmark-lookup "<task or dataset>"`
 - `labmate literature-search "<method or task query>" --max-results 5`

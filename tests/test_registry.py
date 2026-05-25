@@ -12,6 +12,7 @@ def test_registry_contains_initial_read_only_tools() -> None:
         "literature_search",
         "citation_graph",
         "dataset_inspect",
+        "research_brief",
         "benchmark_lookup",
         "docs_fetch",
         "github_find_examples",

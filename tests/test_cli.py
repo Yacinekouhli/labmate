@@ -32,6 +32,23 @@ def test_dataset_inspect_command_calls_registered_handler(tmp_path, capsys) -> N
     assert payload["result"]["sample_rows"] == [{"id": "1", "target": "0"}]
 
 
+def test_research_brief_command_returns_workflow_contract(tmp_path, capsys) -> None:
+    (tmp_path / "train.csv").write_text("id,feature,target\n1,10,0\n2,11,1\n", encoding="utf-8")
+    (tmp_path / "test.csv").write_text("id,feature\n3,12\n", encoding="utf-8")
+
+    exit_code = main(["research-brief", str(tmp_path), "--max-benchmarks", "1"])
+    payload = _json_output(capsys)
+
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["tool"] == "research_brief"
+    assert payload["result"]["inferred_task"]["task_type"] == "tabular classification"
+    assert payload["result"]["benchmark_context"]["benchmarks"]
+    assert any(
+        "dataset-inspect" in command for command in payload["result"]["recommended_next_commands"]
+    )
+
+
 def test_literature_search_unimplemented_backend_returns_contract_failure(capsys) -> None:
     exit_code = main(["literature-search", "tabular modeling", "--backend", "openalex"])
     payload = _json_output(capsys)

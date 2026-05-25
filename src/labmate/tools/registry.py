@@ -17,6 +17,7 @@ from labmate.tools.literature import (
     default_local_corpus_backend,
     search_literature,
 )
+from labmate.tools.workflows import build_research_brief
 
 ToolRisk = Literal["read_only", "mutating"]
 ToolHandler = Callable[[Mapping[str, JsonValue]], ToolResponse]
@@ -387,6 +388,54 @@ def _github_find_examples_handler(arguments: Mapping[str, JsonValue]) -> ToolRes
     )
 
 
+def _research_brief_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
+    try:
+        path = _as_str(arguments, "path")
+        backend_name = _as_optional_str(arguments, "backend", "local")
+        task_hint = _as_maybe_str(arguments, "task_hint")
+        benchmark_query = _as_maybe_str(arguments, "benchmark_query")
+        sample_size = _as_int(arguments, "sample_size", 3)
+        max_profile_rows = _as_int(arguments, "max_profile_rows", 250_000)
+        max_benchmarks = _as_int(arguments, "max_benchmarks", 3)
+        if backend_name != "local":
+            return failure(
+                "research_brief",
+                code="backend_not_implemented",
+                message=f"Research brief backend {backend_name!r} is not implemented yet.",
+                exit_code=ExitCode.BACKEND_UNAVAILABLE,
+                details={"backend": backend_name},
+            )
+
+        result = build_research_brief(
+            path,
+            task_hint=task_hint,
+            benchmark_query=benchmark_query,
+            sample_size=sample_size,
+            max_profile_rows=max_profile_rows,
+            max_benchmarks=max_benchmarks,
+        )
+    except DatasetInspectionError as exc:
+        return failure(
+            "research_brief",
+            code="dataset_inspection_error",
+            message=str(exc),
+            exit_code=ExitCode.TOOL_ERROR,
+        )
+    except ValueError as exc:
+        return failure(
+            "research_brief",
+            code="invalid_arguments",
+            message=str(exc),
+            exit_code=ExitCode.USAGE_ERROR,
+        )
+
+    return success(
+        "research_brief",
+        result,
+        metadata={"backend": "local"},
+    )
+
+
 def _not_implemented_handler(tool_name: str) -> ToolHandler:
     def handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
         backend = arguments.get("backend")
@@ -409,6 +458,7 @@ LITERATURE_BACKENDS = ("arxiv", "semantic_scholar", "openalex", "core")
 CITATION_BACKENDS = ("local", "semantic_scholar", "openalex")
 DOCS_BACKENDS = ("official_docs", "huggingface", "local")
 BENCHMARK_BACKENDS = ("local", "papers_with_code", "openml")
+RESEARCH_BRIEF_BACKENDS = ("local",)
 
 _TOOLS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
@@ -485,6 +535,41 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             required=("path",),
         ),
         handler=_dataset_inspect_handler,
+    ),
+    ToolDefinition(
+        name="research_brief",
+        description=(
+            "Create a first-pass ML research brief from local dataset and benchmark context."
+        ),
+        read_only=True,
+        backends=RESEARCH_BRIEF_BACKENDS,
+        input_schema=_object_schema(
+            {
+                "path": _string_schema("Local CSV/TSV file or dataset directory to inspect."),
+                "backend": _backend_schema(RESEARCH_BRIEF_BACKENDS),
+                "task_hint": _string_schema("Optional caller-supplied task description."),
+                "benchmark_query": _string_schema("Optional benchmark lookup query override."),
+                "sample_size": _integer_schema(
+                    "Number of sample rows to inspect per file.",
+                    minimum=0,
+                    maximum=50,
+                    default=3,
+                ),
+                "max_profile_rows": _integer_schema(
+                    "Maximum rows to profile per tabular file.",
+                    minimum=1,
+                    default=250_000,
+                ),
+                "max_benchmarks": _integer_schema(
+                    "Maximum local benchmark references to include.",
+                    minimum=1,
+                    maximum=10,
+                    default=3,
+                ),
+            },
+            required=("path",),
+        ),
+        handler=_research_brief_handler,
     ),
     ToolDefinition(
         name="benchmark_lookup",

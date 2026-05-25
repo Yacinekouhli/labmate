@@ -72,6 +72,20 @@ def _build_parser() -> argparse.ArgumentParser:
     dataset.add_argument("--sample-size", type=int, default=5)
     dataset.add_argument("--max-profile-rows", type=int, default=250_000)
 
+    research = subparsers.add_parser(
+        "research-brief",
+        help="Create a first-pass ML research brief from a local dataset.",
+    )
+    research.add_argument("path", help="CSV/TSV file or directory to inspect.")
+    research.add_argument(
+        "--backend", default="local", help="Research brief backend. Defaults to local."
+    )
+    research.add_argument("--task-hint", help="Optional caller-supplied task description.")
+    research.add_argument("--benchmark-query", help="Optional benchmark lookup query override.")
+    research.add_argument("--sample-size", type=int, default=3)
+    research.add_argument("--max-profile-rows", type=int, default=250_000)
+    research.add_argument("--max-benchmarks", type=int, default=3)
+
     literature = subparsers.add_parser("literature-search", help="Search ML literature.")
     literature.add_argument("query", help="Paper search query.")
     literature.add_argument(
@@ -144,6 +158,20 @@ def main(argv: Sequence[str] | None = None) -> int:
                 },
             )
         )
+
+    if args.command == "research-brief":
+        payload = {
+            "path": args.path,
+            "backend": args.backend,
+            "sample_size": args.sample_size,
+            "max_profile_rows": args.max_profile_rows,
+            "max_benchmarks": args.max_benchmarks,
+        }
+        if args.task_hint is not None:
+            payload["task_hint"] = args.task_hint
+        if args.benchmark_query is not None:
+            payload["benchmark_query"] = args.benchmark_query
+        return _print_response(call_tool("research_brief", payload))
 
     if args.command == "literature-search":
         payload = {

@@ -36,6 +36,10 @@ This registry should power:
 - tests
 - allowlisting
 
+Workflow tools, such as `research_brief`, may compose lower-level read-only
+tools, but they still enter through the registry and return the same
+`labmate.tool.v1` contract.
+
 ## MCP Surface
 
 The MCP server is an adapter boundary, not a second source of truth. The

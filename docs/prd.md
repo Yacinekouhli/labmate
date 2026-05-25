@@ -43,6 +43,7 @@ The first release should include:
 - read-only tool registry
 - CLI JSON contracts
 - literature search skeleton
+- first-pass research brief over local datasets and benchmark context
 - dataset inspection skeleton
 - benchmark lookup skeleton
 - docs fetch skeleton

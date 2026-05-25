@@ -18,6 +18,10 @@ Forbidden changes:
 
 Run the relevant Labmate commands before editing model code.
 
+- First-pass brief:
+  - Command: `labmate research-brief <dataset-path>`
+  - Capture: inferred task, dataset warnings, benchmark URLs, recommended next
+    commands, and implementation checklist.
 - Dataset schema:
   - Command: `labmate dataset-inspect <dataset-path>`
   - Capture: train/test files, target hints, shared feature columns, missingness,

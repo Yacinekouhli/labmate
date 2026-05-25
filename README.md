@@ -39,6 +39,7 @@ From a checkout:
 ```bash
 uv sync
 uv run labmate tools
+uv run labmate research-brief /path/to/kaggle/data --max-benchmarks 3
 uv run labmate dataset-inspect /path/to/kaggle/data
 uv run labmate benchmark-lookup "tabular classification"
 uv run labmate docs-fetch "xgboost gpu parameters" --max-results 3
@@ -61,6 +62,9 @@ uv run labmate init codex /path/to/ml-repo --apply
 Working today:
 
 - `labmate tools` lists the shared registry.
+- `labmate research-brief <path>` creates a concise first-pass ML brief by
+  combining local dataset inspection, rough task inference, local benchmark
+  context, recommended follow-up commands, and an implementation checklist.
 - `labmate dataset-inspect <path>` inspects local CSV/TSV files and Kaggle-style
   folders containing `train.csv`, `test.csv`, and `sample_submission.csv`.
 - `labmate literature-search <query>` uses the arXiv backend.
@@ -90,6 +94,7 @@ Still stubbed or limited:
 A coding agent should use Labmate before editing model code:
 
 ```bash
+uv run labmate research-brief data/ --max-benchmarks 3
 uv run labmate dataset-inspect data/
 uv run labmate benchmark-lookup "tabular classification auc"
 uv run labmate literature-search "tabular classification baseline" --max-results 5

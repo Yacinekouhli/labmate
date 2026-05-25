@@ -22,6 +22,7 @@ main conversation edits code. Focus on:
 
 Prefer these read-only commands when applicable:
 
+- `labmate research-brief <dataset-path>`
 - `labmate dataset-inspect <dataset-path>`
 - `labmate benchmark-lookup "<task or dataset>"`
 - `labmate literature-search "<method or task query>" --max-results 5`

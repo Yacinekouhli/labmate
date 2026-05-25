@@ -103,6 +103,7 @@ def test_init_templates_include_actionable_labmate_workflow(tmp_path: Path) -> N
     skill = (tmp_path / ".codex" / "skills" / "ml-research" / "SKILL.md").read_text()
 
     for text in (agents, program, skill):
+        assert "labmate research-brief <dataset-path>" in text
         assert "labmate dataset-inspect <dataset-path>" in text
         assert 'labmate benchmark-lookup "<task or dataset>"' in text
         assert 'labmate docs-fetch "<framework API or concept>"' in text
