@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from collections import Counter
 from collections.abc import Iterable
 from datetime import datetime
@@ -13,6 +14,8 @@ SUPPORTED_SUFFIXES = {".csv", ".tsv"}
 DEFAULT_SAMPLE_SIZE = 5
 DEFAULT_MAX_PROFILE_ROWS = 250_000
 MAX_TRACKED_UNIQUE_VALUES = 1_000
+MAX_CONTEXT_FILES = 10
+MAX_CONTEXT_SNIPPET_CHARS = 1_500
 
 MISSING_MARKERS = {"", "na", "n/a", "nan", "none", "null", "nil", "missing", "?"}
 ID_COLUMN_NAMES = {"id", "idx", "index", "rowid", "row_id", "sample_id"}
@@ -30,6 +33,18 @@ TARGET_COLUMN_NAMES = {
 }
 SPLIT_HINT_NAMES = {"fold", "split", "train", "test", "valid", "validation", "is_train"}
 FUTURE_HINT_NAMES = {"future", "next", "post", "after"}
+CONTEXT_FILE_STEMS = {
+    "readme",
+    "data_description",
+    "description",
+    "overview",
+    "evaluation",
+    "rules",
+    "competition",
+    "dataset_metadata",
+    "kaggle",
+}
+CONTEXT_FILE_SUFFIXES = {".md", ".txt", ".json"}
 
 
 class DatasetInspectionError(ValueError):
@@ -88,6 +103,7 @@ def inspect_local_directory(
         "kind": "local_dataset_directory",
         "path": str(directory),
         "files": files,
+        "context_files": _directory_context_files(directory),
         "relations": relations,
         "warnings": _directory_warnings(files, relations),
     }
@@ -507,6 +523,69 @@ def _directory_warnings(files: list[dict[str, Any]], relations: dict[str, Any]) 
                 "verify this is not label leakage."
             )
     return warnings
+
+
+def _directory_context_files(directory: Path) -> list[dict[str, Any]]:
+    context_files = []
+    for file_path in sorted(directory.iterdir()):
+        if not file_path.is_file() or not _is_context_file(file_path):
+            continue
+        context_files.append(_context_file_summary(file_path))
+        if len(context_files) >= MAX_CONTEXT_FILES:
+            break
+    return context_files
+
+
+def _is_context_file(path: Path) -> bool:
+    suffix = path.suffix.lower()
+    if suffix not in CONTEXT_FILE_SUFFIXES:
+        return False
+    stem = _normalize_name(path.stem)
+    return stem in CONTEXT_FILE_STEMS or any(token in stem for token in CONTEXT_FILE_STEMS)
+
+
+def _context_file_summary(path: Path) -> dict[str, Any]:
+    snippet = _read_context_snippet(path)
+    summary: dict[str, Any] = {
+        "file_name": path.name,
+        "path": str(path),
+        "kind": _context_file_kind(path),
+        "size_bytes": path.stat().st_size,
+        "snippet": snippet,
+    }
+    if path.suffix.lower() == ".json":
+        summary["json_keys"] = _json_keys(snippet)
+    return summary
+
+
+def _read_context_snippet(path: Path) -> str:
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        text = handle.read(MAX_CONTEXT_SNIPPET_CHARS + 1)
+    text = " ".join(text.split())
+    if len(text) > MAX_CONTEXT_SNIPPET_CHARS:
+        return text[:MAX_CONTEXT_SNIPPET_CHARS].rstrip() + "..."
+    return text
+
+
+def _context_file_kind(path: Path) -> str:
+    stem = _normalize_name(path.stem)
+    if stem in {"data_description", "description"}:
+        return "data_description"
+    if stem in {"evaluation", "rules"}:
+        return "competition_rules"
+    if stem in {"kaggle", "competition", "dataset_metadata"} or path.suffix.lower() == ".json":
+        return "metadata"
+    return "documentation"
+
+
+def _json_keys(snippet: str) -> list[str]:
+    try:
+        value = json.loads(snippet.removesuffix("..."))
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(value, dict):
+        return []
+    return sorted(str(key) for key in value)[:25]
 
 
 def _column_names(file_info: dict[str, Any]) -> list[str]:

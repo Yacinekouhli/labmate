@@ -65,7 +65,8 @@ Working today:
   usage examples.
 - `labmate research-brief <path>` creates a concise first-pass ML brief by
   combining local dataset inspection, rough task inference, local benchmark
-  context, recommended follow-up commands, and an implementation checklist.
+  context, local metric hints from documentation files, recommended follow-up
+  commands, and an implementation checklist.
 - `labmate dataset-inspect <path>` inspects local CSV/TSV files and Kaggle-style
   folders containing `train.csv`, `test.csv`, and `sample_submission.csv`.
 - `labmate literature-search <query>` uses the arXiv backend.

@@ -2,12 +2,26 @@
 
 from __future__ import annotations
 
+import re
 import shlex
 from pathlib import Path
 from typing import Any
 
 from labmate.tools.benchmarks import BenchmarkLookupResult, LocalBenchmarkBackend, lookup_benchmarks
 from labmate.tools.datasets import inspect_local_dataset
+
+METRIC_PATTERNS = (
+    ("roc_auc", re.compile(r"\b(?:roc[-_ ]?auc|auc)\b", re.IGNORECASE)),
+    ("log_loss", re.compile(r"\b(?:log[-_ ]?loss|logloss)\b", re.IGNORECASE)),
+    ("rmse", re.compile(r"\b(?:rmse|root mean squared error)\b", re.IGNORECASE)),
+    ("mae", re.compile(r"\b(?:mae|mean absolute error)\b", re.IGNORECASE)),
+    ("accuracy", re.compile(r"\baccuracy\b", re.IGNORECASE)),
+    ("f1", re.compile(r"\bf1(?: score)?\b", re.IGNORECASE)),
+    ("map_at_k", re.compile(r"\b(?:map@k|mean average precision)\b", re.IGNORECASE)),
+    ("ndcg", re.compile(r"\bndcg\b", re.IGNORECASE)),
+    ("mape", re.compile(r"\bmape\b", re.IGNORECASE)),
+    ("smape", re.compile(r"\bsmape\b", re.IGNORECASE)),
+)
 
 
 def build_research_brief(
@@ -67,6 +81,7 @@ def _dataset_summary(dataset: dict[str, Any]) -> dict[str, Any]:
             "kind": dataset["kind"],
             "path": dataset["path"],
             "files": files,
+            "context_files": _context_files(dataset.get("context_files", [])),
             "relations": relations,
             "warnings": _collect_dataset_warnings(
                 files,
@@ -80,6 +95,7 @@ def _dataset_summary(dataset: dict[str, Any]) -> dict[str, Any]:
         "kind": dataset["kind"],
         "path": dataset["path"],
         "files": [file_summary],
+        "context_files": [],
         "relations": {},
         "warnings": _collect_dataset_warnings(
             [file_summary],
@@ -112,6 +128,19 @@ def _column_summary(column: dict[str, Any]) -> dict[str, Any]:
         "unique_values_truncated": column["unique_values_truncated"],
         "role_hints": list(column["role_hints"]),
     }
+
+
+def _context_files(context_files: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "file_name": context_file["file_name"],
+            "kind": context_file["kind"],
+            "size_bytes": context_file["size_bytes"],
+            "snippet": context_file["snippet"],
+            "json_keys": list(context_file.get("json_keys", [])),
+        }
+        for context_file in context_files
+    ]
 
 
 def _collect_dataset_warnings(
@@ -279,8 +308,36 @@ def _evidence(
         "benchmark_urls": [
             benchmark.provenance_url or benchmark.url for benchmark in benchmarks.benchmarks
         ],
+        "context_files": [
+            {"file_name": context_file["file_name"], "kind": context_file["kind"]}
+            for context_file in dataset_summary["context_files"]
+        ],
+        "metric_hints": _metric_hints(dataset_summary),
         "dataset_warning_count": len(dataset_summary["warnings"]),
     }
+
+
+def _metric_hints(dataset_summary: dict[str, Any]) -> list[dict[str, str]]:
+    hints: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for context_file in dataset_summary["context_files"]:
+        snippet = str(context_file.get("snippet", ""))
+        for metric, pattern in METRIC_PATTERNS:
+            match = pattern.search(snippet)
+            if not match:
+                continue
+            key = (metric, context_file["file_name"])
+            if key in seen:
+                continue
+            seen.add(key)
+            hints.append(
+                {
+                    "metric": metric,
+                    "source_file": context_file["file_name"],
+                    "matched_text": match.group(0),
+                }
+            )
+    return hints
 
 
 def _recommended_next_commands(
@@ -320,6 +377,11 @@ def _implementation_checklist(
         "Start with a dummy or simple linear baseline before adding heavier models.",
         "Keep preprocessing identical for train and test feature columns.",
     ]
+    if dataset_summary["context_files"]:
+        checklist.insert(
+            1,
+            "Use local context files to verify metric, rules, and submission columns.",
+        )
     if dataset_summary["warnings"]:
         checklist.append("Resolve or explicitly justify dataset warnings before modeling.")
 

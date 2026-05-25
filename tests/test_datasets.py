@@ -52,6 +52,14 @@ def test_inspect_tabular_file_supports_tsv(tmp_path) -> None:
 
 
 def test_inspect_local_dataset_directory_adds_split_and_submission_hints(tmp_path) -> None:
+    (tmp_path / "evaluation.md").write_text(
+        "Submissions are evaluated using ROC AUC.",
+        encoding="utf-8",
+    )
+    (tmp_path / "kaggle.json").write_text(
+        '{"title": "Example Competition", "id": "example"}',
+        encoding="utf-8",
+    )
     (tmp_path / "train.csv").write_text(
         "id,feature,target\n1,10,0\n2,11,1\n",
         encoding="utf-8",
@@ -91,6 +99,23 @@ def test_inspect_local_dataset_directory_adds_split_and_submission_hints(tmp_pat
         "target_columns_present_in_test": [],
     }
     assert result["relations"]["likely_target_columns"] == ["target"]
+    assert result["context_files"] == [
+        {
+            "file_name": "evaluation.md",
+            "path": str(tmp_path / "evaluation.md"),
+            "kind": "competition_rules",
+            "size_bytes": 40,
+            "snippet": "Submissions are evaluated using ROC AUC.",
+        },
+        {
+            "file_name": "kaggle.json",
+            "path": str(tmp_path / "kaggle.json"),
+            "kind": "metadata",
+            "size_bytes": 49,
+            "snippet": '{"title": "Example Competition", "id": "example"}',
+            "json_keys": ["id", "title"],
+        },
+    ]
     assert result["warnings"] == []
 
 

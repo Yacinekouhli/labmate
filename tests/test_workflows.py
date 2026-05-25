@@ -2,6 +2,10 @@ from labmate.tools.workflows import build_research_brief
 
 
 def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None:
+    (tmp_path / "evaluation.md").write_text(
+        "Submissions are scored with ROC AUC.",
+        encoding="utf-8",
+    )
     (tmp_path / "train.csv").write_text(
         "id,feature,target\n1,10,0\n2,11,1\n",
         encoding="utf-8",
@@ -32,6 +36,16 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
     }
     assert result["benchmark_context"]["benchmarks"]
     assert result["evidence"]["target_columns"] == ["target"]
+    assert result["evidence"]["context_files"] == [
+        {"file_name": "evaluation.md", "kind": "competition_rules"}
+    ]
+    assert result["evidence"]["metric_hints"] == [
+        {
+            "metric": "roc_auc",
+            "source_file": "evaluation.md",
+            "matched_text": "ROC AUC",
+        }
+    ]
     assert all(
         warning["message"] != "No obvious target column detected from column names."
         for warning in result["dataset_summary"]["warnings"]
@@ -39,6 +53,7 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
     assert result["recommended_next_commands"][0].startswith("labmate dataset-inspect ")
     assert any("literature-search" in command for command in result["recommended_next_commands"])
     assert any("competition metric" in item for item in result["implementation_checklist"])
+    assert any("local context files" in item for item in result["implementation_checklist"])
     assert "planning aid" in result["warnings"][0]
 
 
