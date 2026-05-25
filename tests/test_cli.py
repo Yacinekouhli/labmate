@@ -36,6 +36,22 @@ def test_dataset_inspect_command_calls_registered_handler(tmp_path, capsys) -> N
     assert payload["result"]["sample_rows"] == [{"id": "1", "target": "0"}]
 
 
+def test_project_scan_command_returns_project_contract(tmp_path, capsys) -> None:
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "train.csv").write_text("id,target\n1,0\n", encoding="utf-8")
+    (data / "test.csv").write_text("id\n2\n", encoding="utf-8")
+
+    exit_code = main(["project-scan", str(tmp_path)])
+    payload = _json_output(capsys)
+
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["tool"] == "project_scan"
+    assert payload["result"]["dataset_candidates"][0]["path"] == "data"
+    assert payload["result"]["recommended_next_commands"][1] == f"labmate research-brief {data}"
+
+
 def test_research_brief_command_returns_workflow_contract(tmp_path, capsys) -> None:
     (tmp_path / "train.csv").write_text("id,feature,target\n1,10,0\n2,11,1\n", encoding="utf-8")
     (tmp_path / "test.csv").write_text("id,feature\n3,12\n", encoding="utf-8")

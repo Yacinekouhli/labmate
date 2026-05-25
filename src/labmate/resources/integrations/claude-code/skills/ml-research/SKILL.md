@@ -14,6 +14,7 @@ Workflow:
 2. Ask the `ml-researcher` subagent to gather evidence when the research pass
    would add noisy context to the main conversation.
 3. Run focused Labmate tools:
+   - `labmate project-scan <project-root>`
    - `labmate research-brief <dataset-path>`
    - `labmate dataset-inspect <dataset-path>`
    - `labmate benchmark-lookup "<task or dataset>"`

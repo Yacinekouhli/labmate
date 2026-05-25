@@ -105,6 +105,22 @@ def test_research_brief_can_be_called_through_mcp_helper(tmp_path) -> None:
     assert result.structuredContent["result"]["benchmark_context"]["benchmarks"]
 
 
+def test_project_scan_can_be_called_through_mcp_helper(tmp_path) -> None:
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "train.csv").write_text("id,target\n1,0\n", encoding="utf-8")
+    (data / "test.csv").write_text("id\n2\n", encoding="utf-8")
+
+    result = call_mcp_tool("project_scan", {"path": str(tmp_path)})
+
+    assert result.isError is False
+    assert result.structuredContent is not None
+    assert result.structuredContent["schema_version"] == "labmate.tool.v1"
+    assert result.structuredContent["ok"] is True
+    assert result.structuredContent["tool"] == "project_scan"
+    assert result.structuredContent["result"]["dataset_candidates"][0]["path"] == "data"
+
+
 def test_dataset_inspect_can_be_called_through_registered_server_handler(tmp_path) -> None:
     (tmp_path / "train.csv").write_text("id,feature,target\n1,10,0\n2,11,1\n", encoding="utf-8")
     (tmp_path / "test.csv").write_text("id,feature\n3,12\n4,13\n", encoding="utf-8")

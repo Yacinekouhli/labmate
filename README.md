@@ -39,6 +39,7 @@ From a checkout:
 ```bash
 uv sync
 uv run labmate tools
+uv run labmate project-scan /path/to/ml-repo
 uv run labmate research-brief /path/to/kaggle/data --max-benchmarks 3
 uv run labmate dataset-inspect /path/to/kaggle/data
 uv run labmate benchmark-lookup "tabular classification"
@@ -63,6 +64,8 @@ Working today:
 
 - `labmate tools` lists the shared registry with schemas, backends, and CLI/MCP
   usage examples.
+- `labmate project-scan <path>` scans an unknown ML repo for likely datasets,
+  code entrypoints, dependency files, agent setup, and next Labmate commands.
 - `labmate research-brief <path>` creates a concise first-pass ML brief by
   combining local dataset inspection, rough task inference, local benchmark
   context, local metric hints from documentation files, a baseline modeling
@@ -96,6 +99,7 @@ Still stubbed or limited:
 A coding agent should use Labmate before editing model code:
 
 ```bash
+uv run labmate project-scan .
 uv run labmate research-brief data/ --max-benchmarks 3
 uv run labmate dataset-inspect data/
 uv run labmate benchmark-lookup "tabular classification auc"

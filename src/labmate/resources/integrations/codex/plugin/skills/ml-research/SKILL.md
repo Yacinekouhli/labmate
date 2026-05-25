@@ -14,6 +14,7 @@ Workflow:
 1. Read `program.md` if present.
 2. Identify the research questions blocking implementation.
 3. Run focused Labmate tools:
+   - `labmate project-scan <project-root>`
    - `labmate research-brief <dataset-path>`
    - `labmate dataset-inspect <dataset-path>`
    - `labmate benchmark-lookup "<task or dataset>"`

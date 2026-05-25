@@ -73,6 +73,17 @@ def _build_parser() -> argparse.ArgumentParser:
     dataset.add_argument("--sample-size", type=int, default=5)
     dataset.add_argument("--max-profile-rows", type=int, default=250_000)
 
+    project = subparsers.add_parser(
+        "project-scan",
+        help="Scan a local ML project for datasets and entrypoints.",
+    )
+    project.add_argument("path", help="Project directory to scan.")
+    project.add_argument(
+        "--backend", default="local", help="Project scan backend. Defaults to local."
+    )
+    project.add_argument("--max-depth", type=int, default=4)
+    project.add_argument("--max-entries", type=int, default=500)
+
     research = subparsers.add_parser(
         "research-brief",
         help="Create a first-pass ML research brief from a local dataset.",
@@ -156,6 +167,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "backend": args.backend,
                     "sample_size": args.sample_size,
                     "max_profile_rows": args.max_profile_rows,
+                },
+            )
+        )
+
+    if args.command == "project-scan":
+        return _print_response(
+            call_tool(
+                "project_scan",
+                {
+                    "path": args.path,
+                    "backend": args.backend,
+                    "max_depth": args.max_depth,
+                    "max_entries": args.max_entries,
                 },
             )
         )

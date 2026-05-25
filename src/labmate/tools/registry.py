@@ -17,6 +17,7 @@ from labmate.tools.literature import (
     default_local_corpus_backend,
     search_literature,
 )
+from labmate.tools.projects import ProjectScanError, scan_local_project
 from labmate.tools.workflows import build_research_brief
 
 ToolRisk = Literal["read_only", "mutating"]
@@ -453,6 +454,48 @@ def _research_brief_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
     )
 
 
+def _project_scan_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
+    try:
+        path = _as_str(arguments, "path")
+        backend_name = _as_optional_str(arguments, "backend", "local")
+        max_depth = _as_int(arguments, "max_depth", 4)
+        max_entries = _as_int(arguments, "max_entries", 500)
+        if backend_name != "local":
+            return failure(
+                "project_scan",
+                code="backend_not_implemented",
+                message=f"Project scan backend {backend_name!r} is not implemented yet.",
+                exit_code=ExitCode.BACKEND_UNAVAILABLE,
+                details={"backend": backend_name},
+            )
+
+        result = scan_local_project(
+            path,
+            max_depth=max_depth,
+            max_entries=max_entries,
+        )
+    except ProjectScanError as exc:
+        return failure(
+            "project_scan",
+            code="project_scan_error",
+            message=str(exc),
+            exit_code=ExitCode.TOOL_ERROR,
+        )
+    except ValueError as exc:
+        return failure(
+            "project_scan",
+            code="invalid_arguments",
+            message=str(exc),
+            exit_code=ExitCode.USAGE_ERROR,
+        )
+
+    return success(
+        "project_scan",
+        result,
+        metadata={"backend": "local"},
+    )
+
+
 def _not_implemented_handler(tool_name: str) -> ToolHandler:
     def handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
         backend = arguments.get("backend")
@@ -476,6 +519,7 @@ CITATION_BACKENDS = ("local", "semantic_scholar", "openalex")
 DOCS_BACKENDS = ("official_docs", "huggingface", "local")
 BENCHMARK_BACKENDS = ("local", "papers_with_code", "openml")
 RESEARCH_BRIEF_BACKENDS = ("local",)
+PROJECT_SCAN_BACKENDS = ("local",)
 
 _TOOLS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
@@ -580,6 +624,42 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             _mcp_example(
                 {"path": "data/", "sample_size": 5},
                 "Inspect a dataset through MCP.",
+            ),
+        ),
+    ),
+    ToolDefinition(
+        name="project_scan",
+        description="Scan a local ML project for datasets, code entrypoints, and agent setup.",
+        read_only=True,
+        backends=PROJECT_SCAN_BACKENDS,
+        input_schema=_object_schema(
+            {
+                "path": _string_schema("Local project directory to scan."),
+                "backend": _backend_schema(PROJECT_SCAN_BACKENDS),
+                "max_depth": _integer_schema(
+                    "Maximum directory depth to scan.",
+                    minimum=0,
+                    maximum=10,
+                    default=4,
+                ),
+                "max_entries": _integer_schema(
+                    "Maximum filesystem entries to inspect.",
+                    minimum=1,
+                    maximum=20_000,
+                    default=500,
+                ),
+            },
+            required=("path",),
+        ),
+        handler=_project_scan_handler,
+        usage_examples=(
+            _cli_example(
+                "labmate project-scan .",
+                "Find likely datasets and ML entrypoints in an unknown repo.",
+            ),
+            _mcp_example(
+                {"path": "."},
+                "Scan a project through MCP before choosing a dataset path.",
             ),
         ),
     ),
