@@ -82,12 +82,14 @@ def inspect_local_directory(
     if not files:
         raise DatasetInspectionError(f"No supported CSV/TSV files found in: {directory}")
 
+    relations = _directory_relations(files)
+
     return {
         "kind": "local_dataset_directory",
         "path": str(directory),
         "files": files,
-        "relations": _directory_relations(files),
-        "warnings": _directory_warnings(files),
+        "relations": relations,
+        "warnings": _directory_warnings(files, relations),
     }
 
 
@@ -378,13 +380,19 @@ def _directory_relations(files: list[dict[str, Any]]) -> dict[str, Any]:
     sample_submission = by_role.get("sample_submission")
     test = by_role.get("test")
     train = by_role.get("train")
+    likely_target_columns = _likely_directory_targets(train, sample_submission)
 
     return {
         "train_file": train["file_name"] if train else None,
         "test_file": test["file_name"] if test else None,
         "sample_submission_file": sample_submission["file_name"] if sample_submission else None,
         "sample_submission_alignment": _sample_submission_alignment(sample_submission, test),
-        "likely_target_columns": _likely_directory_targets(train, sample_submission),
+        "train_test_schema_alignment": _train_test_schema_alignment(
+            train,
+            test,
+            likely_target_columns,
+        ),
+        "likely_target_columns": likely_target_columns,
     }
 
 
@@ -428,7 +436,50 @@ def _likely_directory_targets(
     return list(dict.fromkeys(candidates))
 
 
-def _directory_warnings(files: list[dict[str, Any]]) -> list[str]:
+def _train_test_schema_alignment(
+    train: dict[str, Any] | None,
+    test: dict[str, Any] | None,
+    likely_target_columns: list[str],
+) -> dict[str, Any] | None:
+    if not train or not test:
+        return None
+
+    train_columns = _column_names(train)
+    test_columns = _column_names(test)
+    test_column_set = set(test_columns)
+    train_id_columns = _id_column_names(train)
+    id_column_set = set(train_id_columns) | set(_id_column_names(test))
+    target_column_set = set(likely_target_columns)
+
+    common_columns = [column for column in train_columns if column in test_column_set]
+    train_only_columns = [column for column in train_columns if column not in test_column_set]
+    test_only_columns = [column for column in test_columns if column not in set(train_columns)]
+    common_feature_columns = [
+        column
+        for column in common_columns
+        if column not in id_column_set and column not in target_column_set
+    ]
+
+    return {
+        "common_columns": common_columns,
+        "common_feature_columns": common_feature_columns,
+        "id_columns": [column for column in train_id_columns if column in test_column_set],
+        "train_only_columns": train_only_columns,
+        "test_only_columns": test_only_columns,
+        "target_columns_absent_from_test": [
+            column
+            for column in likely_target_columns
+            if column in train_columns and column not in test_column_set
+        ],
+        "target_columns_present_in_test": [
+            column
+            for column in likely_target_columns
+            if column in train_columns and column in test_column_set
+        ],
+    }
+
+
+def _directory_warnings(files: list[dict[str, Any]], relations: dict[str, Any]) -> list[str]:
     warnings = []
     roles = {_file_role(file_info["file_name"]) for file_info in files}
     if "train" not in roles:
@@ -445,7 +496,21 @@ def _directory_warnings(files: list[dict[str, Any]]) -> list[str]:
                 f"{file_info['file_name']} has target-like columns; "
                 "verify no labels leaked into test."
             )
+
+    schema_alignment = relations.get("train_test_schema_alignment")
+    if schema_alignment:
+        if not schema_alignment["common_feature_columns"]:
+            warnings.append("No non-id feature columns are shared between train and test files.")
+        if schema_alignment["target_columns_present_in_test"]:
+            warnings.append(
+                "Likely target columns are present in both train and test files; "
+                "verify this is not label leakage."
+            )
     return warnings
+
+
+def _column_names(file_info: dict[str, Any]) -> list[str]:
+    return [column["name"] for column in file_info["columns"]]
 
 
 def _id_column_names(file_info: dict[str, Any]) -> list[str]:

@@ -81,8 +81,37 @@ def test_inspect_local_dataset_directory_adds_split_and_submission_hints(tmp_pat
         "row_counts_match": True,
         "submission_output_columns": ["target"],
     }
+    assert result["relations"]["train_test_schema_alignment"] == {
+        "common_columns": ["id", "feature"],
+        "common_feature_columns": ["feature"],
+        "id_columns": ["id"],
+        "train_only_columns": ["target"],
+        "test_only_columns": [],
+        "target_columns_absent_from_test": ["target"],
+        "target_columns_present_in_test": [],
+    }
     assert result["relations"]["likely_target_columns"] == ["target"]
     assert result["warnings"] == []
+
+
+def test_inspect_local_dataset_warns_when_target_is_present_in_test(tmp_path) -> None:
+    (tmp_path / "train.csv").write_text(
+        "id,feature,target\n1,10,0\n2,11,1\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "test.csv").write_text(
+        "id,feature,target\n3,12,0\n4,13,0\n",
+        encoding="utf-8",
+    )
+
+    result = inspect_local_dataset(tmp_path)
+
+    assert result["relations"]["train_test_schema_alignment"]["target_columns_present_in_test"] == [
+        "target"
+    ]
+    assert (
+        "Likely target columns are present in both train and test files" in result["warnings"][-1]
+    )
 
 
 def test_large_profile_reports_bounded_row_count(tmp_path) -> None:
