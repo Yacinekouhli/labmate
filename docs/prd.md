@@ -47,6 +47,7 @@ The first release should include:
 - literature search with arXiv-backed results
 - first-pass research brief over local datasets, benchmark context, and ordered
   follow-up research actions, including provided validation/split-column guidance
+  and sample-submission format
 - dataset inspection with plain/gzipped CSV and TSV support, zip archive
   inspection, Kaggle-style split hints, and target-distribution hints
 - benchmark lookup with a curated local catalog

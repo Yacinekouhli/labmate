@@ -50,6 +50,12 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
         ],
     }
     assert result["evidence"]["validation_columns"] == []
+    assert result["evidence"]["submission_format"] == {
+        "sample_submission_file": "sample_submission.csv",
+        "id_columns": ["id"],
+        "output_columns": ["target"],
+        "row_counts_match_test": True,
+    }
     assert result["evidence"]["context_files"] == [
         {"file_name": "evaluation.md", "kind": "competition_rules"}
     ]
@@ -68,6 +74,7 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
     )
     assert result["modeling_plan"]["id_columns"] == ["id"]
     assert result["modeling_plan"]["validation_columns"] == []
+    assert result["modeling_plan"]["submission_format"] == result["evidence"]["submission_format"]
     assert result["modeling_plan"]["feature_columns"] == ["feature"]
     assert result["modeling_plan"]["suggested_metric"] == "roc_auc"
     assert result["modeling_plan"]["validation_strategy"]["name"] == "stratified_k_fold"
@@ -112,7 +119,9 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
     ]
     assert result["recommended_next_commands"][0].startswith("labmate dataset-inspect ")
     assert any("literature-search" in command for command in result["recommended_next_commands"])
-    assert any("competition metric" in item for item in result["implementation_checklist"])
+    assert any(
+        "sample submission columns target" in item for item in result["implementation_checklist"]
+    )
     assert any("local context files" in item for item in result["implementation_checklist"])
     assert "planning aid" in result["warnings"][0]
 
@@ -208,6 +217,9 @@ def test_research_brief_supports_zip_archive_dataset(tmp_path) -> None:
         }
     ]
     assert result["evidence"]["target_columns"] == ["target"]
+    assert result["evidence"]["submission_format"]["sample_submission_file"] == (
+        "sample_submission.csv"
+    )
     assert result["modeling_plan"]["readiness"] == "ready_for_baseline"
     assert result["recommended_next_commands"][0] == (
         f"labmate dataset-inspect {archive_path} --sample-size 5"

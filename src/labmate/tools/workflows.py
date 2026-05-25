@@ -331,6 +331,7 @@ def _evidence(
         "target_columns": target_columns,
         "target_distribution": _target_distribution(dataset_summary, target_columns),
         "validation_columns": _validation_columns(dataset_summary),
+        "submission_format": _submission_format(dataset_summary),
         "benchmark_urls": [
             benchmark.provenance_url or benchmark.url for benchmark in benchmarks.benchmarks
         ],
@@ -352,6 +353,7 @@ def _modeling_plan(
     feature_columns = _feature_columns(dataset_summary, target_columns)
     id_columns = _id_columns(dataset_summary)
     validation_columns = _validation_columns(dataset_summary)
+    submission_format = _submission_format(dataset_summary)
     target_distribution = _target_distribution(dataset_summary, target_columns)
     metric_hints = _metric_hints(dataset_summary)
     benchmark_metric = benchmarks.benchmarks[0].metric if benchmarks.benchmarks else None
@@ -364,6 +366,7 @@ def _modeling_plan(
         "target_distribution": target_distribution,
         "id_columns": id_columns,
         "validation_columns": validation_columns,
+        "submission_format": submission_format,
         "feature_columns": feature_columns,
         "suggested_metric": metric,
         "validation_strategy": _validation_strategy(
@@ -426,6 +429,29 @@ def _validation_columns(dataset_summary: dict[str, Any]) -> list[str]:
         for column in train_file["columns"]
         if "split_indicator" in column.get("role_hints", [])
     ]
+
+
+def _submission_format(dataset_summary: dict[str, Any]) -> dict[str, Any] | None:
+    relations = dataset_summary.get("relations", {})
+    sample_submission_file = relations.get("sample_submission_file")
+    alignment = relations.get("sample_submission_alignment")
+    if not isinstance(sample_submission_file, str) or not isinstance(alignment, dict):
+        return None
+
+    output_columns = alignment.get("submission_output_columns")
+    id_columns = alignment.get("common_id_columns")
+    normalized_id_columns = (
+        [str(column) for column in id_columns] if isinstance(id_columns, list) else []
+    )
+    normalized_output_columns = (
+        [str(column) for column in output_columns] if isinstance(output_columns, list) else []
+    )
+    return {
+        "sample_submission_file": sample_submission_file,
+        "id_columns": normalized_id_columns,
+        "output_columns": normalized_output_columns,
+        "row_counts_match_test": alignment.get("row_counts_match"),
+    }
 
 
 def _modeling_readiness(target_columns: list[str], feature_columns: list[str]) -> str:
@@ -671,12 +697,19 @@ def _implementation_checklist(
     benchmarks: BenchmarkLookupResult,
 ) -> list[str]:
     validation_columns = _validation_columns(dataset_summary)
+    submission_format = _submission_format(dataset_summary)
     checklist = [
         "Confirm the competition metric and submission format from the source page.",
         "Create a validation split before tuning against any public leaderboard feedback.",
         "Start with a dummy or simple linear baseline before adding heavier models.",
         "Keep preprocessing identical for train and test feature columns.",
     ]
+    if submission_format and submission_format["output_columns"]:
+        checklist[0] = (
+            "Use sample submission columns "
+            f"{', '.join(submission_format['output_columns'])} and preserve ID columns "
+            f"{', '.join(submission_format['id_columns']) or 'from sample submission'}."
+        )
     if validation_columns:
         checklist[1] = (
             f"Inspect and reuse provided validation/split columns: {', '.join(validation_columns)}."

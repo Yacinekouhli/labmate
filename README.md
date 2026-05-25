@@ -71,8 +71,9 @@ Working today:
 - `labmate research-brief <path>` creates a concise first-pass ML brief by
   combining local dataset inspection, rough task inference, local benchmark
   context, local metric hints from documentation files, target distribution,
-  validation/split columns, a baseline modeling plan, a structured follow-up
-  research plan, recommended commands, and an implementation checklist.
+  validation/split columns, sample-submission format, a baseline modeling plan,
+  a structured follow-up research plan, recommended commands, and an
+  implementation checklist.
 - `labmate dataset-inspect <path>` inspects local CSV/TSV files, gzipped
   CSV/TSV files, zip archives, and Kaggle-style folders containing
   train/test/submission files.
