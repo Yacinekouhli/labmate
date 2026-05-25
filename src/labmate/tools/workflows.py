@@ -61,6 +61,7 @@ def build_research_brief(
         "dataset_summary": dataset_summary,
         "benchmark_context": benchmarks.to_dict(),
         "evidence": _evidence(dataset_summary, benchmarks),
+        "modeling_plan": _modeling_plan(dataset_summary, inferred_task, benchmarks),
         "recommended_next_commands": _recommended_next_commands(
             path=path,
             benchmark_query=query,
@@ -315,6 +316,158 @@ def _evidence(
         "metric_hints": _metric_hints(dataset_summary),
         "dataset_warning_count": len(dataset_summary["warnings"]),
     }
+
+
+def _modeling_plan(
+    dataset_summary: dict[str, Any],
+    inferred_task: dict[str, Any],
+    benchmarks: BenchmarkLookupResult,
+) -> dict[str, Any]:
+    target_columns = _target_columns(dataset_summary)
+    feature_columns = _feature_columns(dataset_summary, target_columns)
+    id_columns = _id_columns(dataset_summary)
+    metric_hints = _metric_hints(dataset_summary)
+    benchmark_metric = benchmarks.benchmarks[0].metric if benchmarks.benchmarks else None
+    metric = metric_hints[0]["metric"] if metric_hints else benchmark_metric
+    readiness = _modeling_readiness(target_columns, feature_columns)
+
+    return {
+        "readiness": readiness,
+        "target_columns": target_columns,
+        "id_columns": id_columns,
+        "feature_columns": feature_columns,
+        "suggested_metric": metric,
+        "validation_strategy": _validation_strategy(
+            inferred_task=inferred_task,
+            metric=metric,
+            ready=readiness == "ready_for_baseline",
+        ),
+        "baseline_experiments": _baseline_experiments(
+            inferred_task=inferred_task,
+            metric=metric,
+            ready=readiness == "ready_for_baseline",
+            benchmarks=benchmarks,
+        ),
+    }
+
+
+def _feature_columns(
+    dataset_summary: dict[str, Any],
+    target_columns: list[str],
+) -> list[str]:
+    schema_alignment = dataset_summary.get("relations", {}).get("train_test_schema_alignment")
+    if isinstance(schema_alignment, dict):
+        common_features = schema_alignment.get("common_feature_columns")
+        if isinstance(common_features, list) and common_features:
+            return [str(column) for column in common_features]
+
+    target_column_set = set(target_columns)
+    id_column_set = set(_id_columns(dataset_summary))
+    train_file = _training_file_summary(dataset_summary)
+    return [
+        column["name"]
+        for column in train_file["columns"]
+        if column["name"] not in target_column_set and column["name"] not in id_column_set
+    ]
+
+
+def _id_columns(dataset_summary: dict[str, Any]) -> list[str]:
+    schema_alignment = dataset_summary.get("relations", {}).get("train_test_schema_alignment")
+    if isinstance(schema_alignment, dict):
+        id_columns = schema_alignment.get("id_columns")
+        if isinstance(id_columns, list) and id_columns:
+            return [str(column) for column in id_columns]
+
+    train_file = _training_file_summary(dataset_summary)
+    return [
+        column["name"] for column in train_file["columns"] if "id" in column.get("role_hints", [])
+    ]
+
+
+def _modeling_readiness(target_columns: list[str], feature_columns: list[str]) -> str:
+    if not target_columns:
+        return "needs_target_confirmation"
+    if not feature_columns:
+        return "needs_feature_confirmation"
+    return "ready_for_baseline"
+
+
+def _validation_strategy(
+    *,
+    inferred_task: dict[str, Any],
+    metric: str | None,
+    ready: bool,
+) -> dict[str, Any]:
+    if not ready:
+        return {
+            "name": "not_ready",
+            "reason": "confirm target and feature columns before creating a validation split",
+        }
+
+    task_type = str(inferred_task["task_type"]).casefold()
+    if "classification" in task_type:
+        return {
+            "name": "stratified_k_fold",
+            "reason": "classification targets need class-balance preservation across folds",
+            "metric": metric or "task_metric_from_rules",
+        }
+    if "time" in task_type or "forecast" in task_type:
+        return {
+            "name": "rolling_origin",
+            "reason": "forecasting tasks need chronological validation to avoid future leakage",
+            "metric": metric or "task_metric_from_rules",
+        }
+    return {
+        "name": "k_fold",
+        "reason": "tabular regression/modeling baseline with no detected time split",
+        "metric": metric or "task_metric_from_rules",
+    }
+
+
+def _baseline_experiments(
+    *,
+    inferred_task: dict[str, Any],
+    metric: str | None,
+    ready: bool,
+    benchmarks: BenchmarkLookupResult,
+) -> list[dict[str, Any]]:
+    if not ready:
+        return [
+            {
+                "name": "schema_confirmation",
+                "model_family": "none",
+                "purpose": "confirm target, ID, feature, metric, and submission columns",
+                "expected_output": "documented schema decision before modeling",
+            }
+        ]
+
+    task_type = str(inferred_task["task_type"]).casefold()
+    experiments = [
+        {
+            "name": "dummy_baseline",
+            "model_family": "dummy",
+            "purpose": "establish a floor before feature engineering or heavy models",
+            "metric": metric or "task_metric_from_rules",
+        },
+        {
+            "name": "linear_baseline",
+            "model_family": (
+                "logistic_regression" if "classification" in task_type else "regularized_linear"
+            ),
+            "purpose": "validate preprocessing and feature handling with a simple model",
+            "metric": metric or "task_metric_from_rules",
+        },
+        {
+            "name": "tree_boosting_baseline",
+            "model_family": "gradient_boosting",
+            "purpose": "strong first tabular baseline after leakage checks pass",
+            "metric": metric or "task_metric_from_rules",
+        },
+    ]
+
+    if benchmarks.benchmarks:
+        experiments[2]["benchmark_reference"] = benchmarks.benchmarks[0].name
+    return experiments
 
 
 def _metric_hints(dataset_summary: dict[str, Any]) -> list[dict[str, str]]:

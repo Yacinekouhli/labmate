@@ -46,6 +46,19 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
             "matched_text": "ROC AUC",
         }
     ]
+    assert result["modeling_plan"]["readiness"] == "ready_for_baseline"
+    assert result["modeling_plan"]["target_columns"] == ["target"]
+    assert result["modeling_plan"]["id_columns"] == ["id"]
+    assert result["modeling_plan"]["feature_columns"] == ["feature"]
+    assert result["modeling_plan"]["suggested_metric"] == "roc_auc"
+    assert result["modeling_plan"]["validation_strategy"]["name"] == "stratified_k_fold"
+    assert [
+        experiment["name"] for experiment in result["modeling_plan"]["baseline_experiments"]
+    ] == [
+        "dummy_baseline",
+        "linear_baseline",
+        "tree_boosting_baseline",
+    ]
     assert all(
         warning["message"] != "No obvious target column detected from column names."
         for warning in result["dataset_summary"]["warnings"]
@@ -75,3 +88,13 @@ def test_research_brief_respects_task_hint_and_benchmark_query(tmp_path) -> None
     assert result["benchmark_context"]["benchmarks"][0]["name"] == (
         "House Prices - Advanced Regression Techniques"
     )
+    assert result["modeling_plan"]["readiness"] == "needs_target_confirmation"
+    assert result["modeling_plan"]["validation_strategy"]["name"] == "not_ready"
+    assert result["modeling_plan"]["baseline_experiments"] == [
+        {
+            "name": "schema_confirmation",
+            "model_family": "none",
+            "purpose": "confirm target, ID, feature, metric, and submission columns",
+            "expected_output": "documented schema decision before modeling",
+        }
+    ]
