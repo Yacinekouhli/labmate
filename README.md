@@ -66,7 +66,7 @@ tests/                 Contract tests
 ## Codex Sketch
 
 ```bash
-codex mcp add ml-intern -- uv run labmate-mcp
+codex mcp add labmate -- uv run labmate-mcp
 ```
 
 Then in Codex:
@@ -79,7 +79,7 @@ Spawn ml_researcher for the research pass and wait for its summary before editin
 ## Claude Code Sketch
 
 ```bash
-claude mcp add --transport stdio ml-intern -- uv run labmate-mcp
+claude mcp add --transport stdio labmate -- uv run labmate-mcp
 ```
 
 Then in Claude Code:

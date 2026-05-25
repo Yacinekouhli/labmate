@@ -21,7 +21,7 @@ def test_codex_init_plan_lists_project_files(tmp_path: Path) -> None:
         ".codex/labmate.mcp.json": "write",
     }
     assert "/goal Follow program.md" in plan.goal_prompt
-    assert plan.follow_up_commands == ("codex mcp add ml-intern -- uv run labmate-mcp",)
+    assert plan.follow_up_commands == ("codex mcp add labmate -- uv run labmate-mcp",)
 
 
 def test_claude_init_plan_lists_project_files(tmp_path: Path) -> None:
@@ -37,7 +37,7 @@ def test_claude_init_plan_lists_project_files(tmp_path: Path) -> None:
     }
     assert "/ml-research program.md" in plan.goal_prompt
     assert plan.follow_up_commands == (
-        "claude mcp add --transport stdio ml-intern -- uv run labmate-mcp",
+        "claude mcp add --transport stdio labmate -- uv run labmate-mcp",
     )
 
 

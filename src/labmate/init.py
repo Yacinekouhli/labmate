@@ -277,9 +277,9 @@ def _goal_prompt(harness: Harness) -> str:
 
 def _follow_up_commands(harness: Harness) -> tuple[str, ...]:
     if harness == "codex":
-        return ("codex mcp add ml-intern -- uv run labmate-mcp",)
+        return ("codex mcp add labmate -- uv run labmate-mcp",)
 
-    return ("claude mcp add --transport stdio ml-intern -- uv run labmate-mcp",)
+    return ("claude mcp add --transport stdio labmate -- uv run labmate-mcp",)
 
 
 def _notes_for_harness(harness: Harness) -> tuple[str, ...]:
