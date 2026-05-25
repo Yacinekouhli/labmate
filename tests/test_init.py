@@ -94,6 +94,23 @@ def test_apply_init_copies_only_planned_writes(tmp_path: Path) -> None:
     }
 
 
+def test_init_templates_include_actionable_labmate_workflow(tmp_path: Path) -> None:
+    plan = plan_init("codex", tmp_path)
+    apply_init(plan)
+
+    agents = (tmp_path / "AGENTS.md").read_text()
+    program = (tmp_path / "program.md").read_text()
+    skill = (tmp_path / ".codex" / "skills" / "ml-research" / "SKILL.md").read_text()
+
+    for text in (agents, program, skill):
+        assert "labmate dataset-inspect <dataset-path>" in text
+        assert 'labmate benchmark-lookup "<task or dataset>"' in text
+        assert 'labmate docs-fetch "<framework API or concept>"' in text
+        assert 'labmate github-find-examples "<implementation pattern>"' in text
+
+    assert "--json" not in agents
+
+
 def test_unknown_harness_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(UnknownHarnessError):
         plan_init("cursor", tmp_path)

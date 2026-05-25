@@ -13,9 +13,13 @@ Workflow:
 
 1. Read `program.md` if present.
 2. Identify the research questions blocking implementation.
-3. Use Labmate CLI or MCP tools for papers, citations, datasets, benchmarks,
-   docs, and code examples.
-4. Summarize sources and risks before editing code.
+3. Run focused Labmate tools:
+   - `labmate dataset-inspect <dataset-path>`
+   - `labmate benchmark-lookup "<task or dataset>"`
+   - `labmate literature-search "<method or task query>" --max-results 5`
+   - `labmate docs-fetch "<framework API or concept>" --max-results 3`
+   - `labmate github-find-examples "<implementation pattern>" --max-results 3`
+4. Summarize command outputs, URLs, dataset risks, and metric/protocol assumptions.
 5. Only recommend implementation steps that are grounded in retrieved evidence.
 
 Suggested Codex prompt:

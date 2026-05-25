@@ -16,11 +16,27 @@ Forbidden changes:
 
 ## Evidence Required
 
-- Papers:
-- Benchmarks:
+Run the relevant Labmate commands before editing model code.
+
 - Dataset schema:
+  - Command: `labmate dataset-inspect <dataset-path>`
+  - Capture: train/test files, target hints, shared feature columns, missingness,
+    leakage warnings, sample rows.
+- Benchmark/task:
+  - Command: `labmate benchmark-lookup "<task or dataset>"`
+  - Capture: metric, protocol, target, pitfalls, baseline suggestions, source URL.
+- Papers:
+  - Command: `labmate literature-search "<method or task query>" --max-results 5`
+  - Capture: title, year, authors, source URL, relevance signals.
 - Current framework docs:
-- Working code examples:
+  - Command: `labmate docs-fetch "<framework API or concept>" --max-results 3`
+  - Optional exact page: `labmate docs-fetch "<topic>" --url <official-doc-url>`
+  - Capture: official URL, version/page title, relevant snippet.
+- Working implementation examples:
+  - Command: `labmate github-find-examples "<implementation pattern>" --max-results 3`
+  - Capture: repository URL, stars, language, license, warnings.
+
+Summarize evidence in the implementation plan with command outputs and URLs.
 
 ## Metric
 
@@ -47,4 +63,3 @@ Keep an experiment only if:
 Stop when:
 
 - ...
-

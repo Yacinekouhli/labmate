@@ -13,9 +13,25 @@ schemas, and workflow documents.
 - Keep the core runtime-neutral.
 - Prefer read-only research and inspection tools before mutating tools.
 - Do not reuse model-provider auth files or private backend endpoints.
-- Keep CLI output reproducible and machine-readable with `--json`.
+- Keep CLI output reproducible and machine-readable.
 - Treat MCP as an integration layer over the same tool registry used by CLI scripts.
 - Keep Codex and Claude Code integrations as thin wrappers in `integrations/`.
+
+## ML Research Workflow
+
+When `program.md` asks for evidence, gather it before editing code:
+
+```bash
+labmate tools
+labmate dataset-inspect <dataset-path>
+labmate benchmark-lookup "<task or dataset>"
+labmate literature-search "<paper or method query>" --max-results 5
+labmate docs-fetch "<framework API or concept>" --max-results 3
+labmate github-find-examples "<implementation pattern>" --max-results 3
+```
+
+Summarize the command outputs, cited URLs, dataset risks, metric/protocol
+assumptions, and implementation recommendations before changing model code.
 
 ## Initial Development Checks
 
