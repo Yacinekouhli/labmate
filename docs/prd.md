@@ -46,7 +46,7 @@ The first release should include:
 - local project scan for unknown ML repositories
 - literature search with arXiv-backed results
 - first-pass research brief over local datasets, benchmark context, and ordered
-  follow-up research actions
+  follow-up research actions, including provided validation/split-column guidance
 - dataset inspection with plain/gzipped CSV and TSV support, zip archive
   inspection, Kaggle-style split hints, and target-distribution hints
 - benchmark lookup with a curated local catalog

@@ -330,6 +330,7 @@ def _evidence(
         ],
         "target_columns": target_columns,
         "target_distribution": _target_distribution(dataset_summary, target_columns),
+        "validation_columns": _validation_columns(dataset_summary),
         "benchmark_urls": [
             benchmark.provenance_url or benchmark.url for benchmark in benchmarks.benchmarks
         ],
@@ -350,6 +351,7 @@ def _modeling_plan(
     target_columns = _target_columns(dataset_summary)
     feature_columns = _feature_columns(dataset_summary, target_columns)
     id_columns = _id_columns(dataset_summary)
+    validation_columns = _validation_columns(dataset_summary)
     target_distribution = _target_distribution(dataset_summary, target_columns)
     metric_hints = _metric_hints(dataset_summary)
     benchmark_metric = benchmarks.benchmarks[0].metric if benchmarks.benchmarks else None
@@ -361,12 +363,14 @@ def _modeling_plan(
         "target_columns": target_columns,
         "target_distribution": target_distribution,
         "id_columns": id_columns,
+        "validation_columns": validation_columns,
         "feature_columns": feature_columns,
         "suggested_metric": metric,
         "validation_strategy": _validation_strategy(
             inferred_task=inferred_task,
             metric=metric,
             ready=readiness == "ready_for_baseline",
+            validation_columns=validation_columns,
         ),
         "baseline_experiments": _baseline_experiments(
             inferred_task=inferred_task,
@@ -381,11 +385,14 @@ def _feature_columns(
     dataset_summary: dict[str, Any],
     target_columns: list[str],
 ) -> list[str]:
+    validation_column_set = set(_validation_columns(dataset_summary))
     schema_alignment = dataset_summary.get("relations", {}).get("train_test_schema_alignment")
     if isinstance(schema_alignment, dict):
         common_features = schema_alignment.get("common_feature_columns")
         if isinstance(common_features, list) and common_features:
-            return [str(column) for column in common_features]
+            return [
+                str(column) for column in common_features if column not in validation_column_set
+            ]
 
     target_column_set = set(target_columns)
     id_column_set = set(_id_columns(dataset_summary))
@@ -393,7 +400,9 @@ def _feature_columns(
     return [
         column["name"]
         for column in train_file["columns"]
-        if column["name"] not in target_column_set and column["name"] not in id_column_set
+        if column["name"] not in target_column_set
+        and column["name"] not in id_column_set
+        and column["name"] not in validation_column_set
     ]
 
 
@@ -410,6 +419,15 @@ def _id_columns(dataset_summary: dict[str, Any]) -> list[str]:
     ]
 
 
+def _validation_columns(dataset_summary: dict[str, Any]) -> list[str]:
+    train_file = _training_file_summary(dataset_summary)
+    return [
+        column["name"]
+        for column in train_file["columns"]
+        if "split_indicator" in column.get("role_hints", [])
+    ]
+
+
 def _modeling_readiness(target_columns: list[str], feature_columns: list[str]) -> str:
     if not target_columns:
         return "needs_target_confirmation"
@@ -423,11 +441,23 @@ def _validation_strategy(
     inferred_task: dict[str, Any],
     metric: str | None,
     ready: bool,
+    validation_columns: list[str],
 ) -> dict[str, Any]:
     if not ready:
         return {
             "name": "not_ready",
             "reason": "confirm target and feature columns before creating a validation split",
+        }
+
+    if validation_columns:
+        return {
+            "name": "provided_split_column",
+            "columns": validation_columns,
+            "reason": (
+                "dataset already includes validation/split columns; inspect and reuse them "
+                "before creating new folds"
+            ),
+            "metric": metric or "task_metric_from_rules",
         }
 
     task_type = str(inferred_task["task_type"]).casefold()
@@ -640,12 +670,17 @@ def _implementation_checklist(
     dataset_summary: dict[str, Any],
     benchmarks: BenchmarkLookupResult,
 ) -> list[str]:
+    validation_columns = _validation_columns(dataset_summary)
     checklist = [
         "Confirm the competition metric and submission format from the source page.",
         "Create a validation split before tuning against any public leaderboard feedback.",
         "Start with a dummy or simple linear baseline before adding heavier models.",
         "Keep preprocessing identical for train and test feature columns.",
     ]
+    if validation_columns:
+        checklist[1] = (
+            f"Inspect and reuse provided validation/split columns: {', '.join(validation_columns)}."
+        )
     if dataset_summary["context_files"]:
         checklist.insert(
             1,

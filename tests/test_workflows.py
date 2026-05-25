@@ -49,6 +49,7 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
             {"value": "1", "count": 1, "rate": 0.5},
         ],
     }
+    assert result["evidence"]["validation_columns"] == []
     assert result["evidence"]["context_files"] == [
         {"file_name": "evaluation.md", "kind": "competition_rules"}
     ]
@@ -66,6 +67,7 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
         == (result["evidence"]["target_distribution"])
     )
     assert result["modeling_plan"]["id_columns"] == ["id"]
+    assert result["modeling_plan"]["validation_columns"] == []
     assert result["modeling_plan"]["feature_columns"] == ["feature"]
     assert result["modeling_plan"]["suggested_metric"] == "roc_auc"
     assert result["modeling_plan"]["validation_strategy"]["name"] == "stratified_k_fold"
@@ -143,6 +145,29 @@ def test_research_brief_respects_task_hint_and_benchmark_query(tmp_path) -> None
             "expected_output": "documented schema decision before modeling",
         }
     ]
+
+
+def test_research_brief_uses_provided_fold_column_for_validation(tmp_path) -> None:
+    (tmp_path / "train.csv").write_text(
+        "id,feature,fold,target\n1,10,0,0\n2,11,1,1\n3,12,0,0\n",
+        encoding="utf-8",
+    )
+
+    result = build_research_brief(tmp_path / "train.csv", max_benchmarks=1)
+
+    assert result["evidence"]["validation_columns"] == ["fold"]
+    assert result["modeling_plan"]["validation_columns"] == ["fold"]
+    assert result["modeling_plan"]["feature_columns"] == ["feature"]
+    assert result["modeling_plan"]["validation_strategy"] == {
+        "name": "provided_split_column",
+        "columns": ["fold"],
+        "reason": (
+            "dataset already includes validation/split columns; inspect and reuse them "
+            "before creating new folds"
+        ),
+        "metric": "roc_auc",
+    }
+    assert any("fold" in item for item in result["implementation_checklist"])
 
 
 def test_research_brief_warns_about_imbalanced_classification_target(tmp_path) -> None:
