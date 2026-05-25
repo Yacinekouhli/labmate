@@ -9,6 +9,7 @@ from typing import Literal
 from labmate.contracts import ExitCode, JsonObject, JsonValue, ToolResponse, failure, success
 from labmate.tools.datasets import DatasetInspectionError, inspect_local_dataset
 from labmate.tools.docs import OfficialDocsBackend, fetch_docs
+from labmate.tools.github import GitHubRepositorySearchBackend, find_github_examples
 from labmate.tools.literature import ArxivSearchBackend, search_literature
 
 ToolRisk = Literal["read_only", "mutating"]
@@ -283,6 +284,51 @@ def _docs_fetch_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
     )
 
 
+def _github_find_examples_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
+    try:
+        query = _as_str(arguments, "query")
+        backend_name = _as_optional_str(arguments, "backend", "github")
+        repository = _as_maybe_str(arguments, "repository")
+        max_results = _as_int(arguments, "max_results", 10)
+        if backend_name != "github":
+            return failure(
+                "github_find_examples",
+                code="backend_not_implemented",
+                message=f"GitHub examples backend {backend_name!r} is not implemented.",
+                exit_code=ExitCode.BACKEND_UNAVAILABLE,
+                details={"backend": backend_name},
+            )
+
+        result = find_github_examples(
+            query,
+            backend=GitHubRepositorySearchBackend(),
+            repository=repository,
+            max_results=max_results,
+        )
+    except ValueError as exc:
+        return failure(
+            "github_find_examples",
+            code="invalid_arguments",
+            message=str(exc),
+            exit_code=ExitCode.USAGE_ERROR,
+        )
+    except OSError as exc:
+        return failure(
+            "github_find_examples",
+            code="backend_unavailable",
+            message=str(exc),
+            exit_code=ExitCode.BACKEND_UNAVAILABLE,
+            retryable=True,
+            details={"backend": "github"},
+        )
+
+    return success(
+        "github_find_examples",
+        result.to_dict(),
+        metadata={"backend": "github"},
+    )
+
+
 def _not_implemented_handler(tool_name: str) -> ToolHandler:
     def handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
         backend = arguments.get("backend")
@@ -440,7 +486,7 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             },
             required=("query",),
         ),
-        handler=_not_implemented_handler("github_find_examples"),
+        handler=_github_find_examples_handler,
     ),
 )
 

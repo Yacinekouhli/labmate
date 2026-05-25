@@ -97,6 +97,14 @@ def _build_parser() -> argparse.ArgumentParser:
     docs.add_argument("--url", help="Exact documentation URL to fetch.")
     docs.add_argument("--max-results", type=int, default=5)
 
+    github = subparsers.add_parser(
+        "github-find-examples",
+        help="Find implementation examples in GitHub repositories.",
+    )
+    github.add_argument("query", help="Implementation pattern or API to search for.")
+    github.add_argument("--repository", help="Optional owner/repo filter.")
+    github.add_argument("--max-results", type=int, default=10)
+
     init = subparsers.add_parser("init", help="Plan or apply agent-harness setup.")
     init.add_argument("harness", choices=["codex", "claude", "claude-code"])
     init.add_argument("project_root")
@@ -160,6 +168,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.url is not None:
             payload["url"] = args.url
         return _print_response(call_tool("docs_fetch", payload))
+
+    if args.command == "github-find-examples":
+        payload = {
+            "query": args.query,
+            "backend": "github",
+            "max_results": args.max_results,
+        }
+        if args.repository is not None:
+            payload["repository"] = args.repository
+        return _print_response(call_tool("github_find_examples", payload))
 
     if args.command == "init":
         try:

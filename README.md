@@ -40,6 +40,8 @@ Working today:
 - `labmate literature-search <query>` uses the arXiv backend.
 - `labmate docs-fetch <query>` searches an official-docs catalog, and
   `--url <docs-url>` fetches exact framework documentation pages.
+- `labmate github-find-examples <query>` finds candidate public GitHub
+  repositories for implementation evidence.
 - `labmate-mcp` starts a stdio MCP server exposing the read-only registry tools.
 - `labmate init codex` and `labmate init claude-code` write non-destructive
   setup artifacts for existing ML repositories.

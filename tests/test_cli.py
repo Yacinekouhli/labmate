@@ -54,6 +54,16 @@ def test_docs_fetch_command_returns_catalog_results(capsys) -> None:
     assert payload["result"]["documents"][0]["provenance_url"].startswith("https://")
 
 
+def test_github_find_examples_command_validates_repository_filter(capsys) -> None:
+    exit_code = main(["github-find-examples", "xgboost", "--repository", "invalid"])
+    payload = _json_output(capsys)
+
+    assert exit_code != 0
+    assert payload["ok"] is False
+    assert payload["tool"] == "github_find_examples"
+    assert payload["error"]["code"] == "invalid_arguments"
+
+
 def test_init_command_can_dry_run_from_packaged_resources(tmp_path, capsys) -> None:
     exit_code = main(["init", "codex", str(tmp_path)])
     payload = _json_output(capsys)
