@@ -37,7 +37,9 @@ Working today:
 - `labmate tools` lists the shared registry.
 - `labmate dataset-inspect <path>` inspects local CSV/TSV files and Kaggle-style
   folders containing `train.csv`, `test.csv`, and `sample_submission.csv`.
-- `labmate literature-search --query ...` uses the arXiv backend.
+- `labmate literature-search <query>` uses the arXiv backend.
+- `labmate docs-fetch <query>` searches an official-docs catalog, and
+  `--url <docs-url>` fetches exact framework documentation pages.
 - `labmate-mcp` starts a stdio MCP server exposing the read-only registry tools.
 - `labmate init codex` and `labmate init claude-code` write non-destructive
   setup artifacts for existing ML repositories.

@@ -86,6 +86,17 @@ def _build_parser() -> argparse.ArgumentParser:
     citation.add_argument("--max-results", type=int, default=20)
     citation.add_argument("--depth", type=int, default=1)
 
+    docs = subparsers.add_parser("docs-fetch", help="Fetch ML framework documentation.")
+    docs.add_argument("query", help="Documentation topic or API name.")
+    docs.add_argument(
+        "--backend",
+        default="official_docs",
+        choices=["official_docs", "huggingface", "local"],
+        help="Docs backend. Defaults to official docs.",
+    )
+    docs.add_argument("--url", help="Exact documentation URL to fetch.")
+    docs.add_argument("--max-results", type=int, default=5)
+
     init = subparsers.add_parser("init", help="Plan or apply agent-harness setup.")
     init.add_argument("harness", choices=["codex", "claude", "claude-code"])
     init.add_argument("project_root")
@@ -139,6 +150,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                 },
             )
         )
+
+    if args.command == "docs-fetch":
+        payload = {
+            "query": args.query,
+            "backend": args.backend,
+            "max_results": args.max_results,
+        }
+        if args.url is not None:
+            payload["url"] = args.url
+        return _print_response(call_tool("docs_fetch", payload))
 
     if args.command == "init":
         try:

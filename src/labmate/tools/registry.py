@@ -8,6 +8,7 @@ from typing import Literal
 
 from labmate.contracts import ExitCode, JsonObject, JsonValue, ToolResponse, failure, success
 from labmate.tools.datasets import DatasetInspectionError, inspect_local_dataset
+from labmate.tools.docs import OfficialDocsBackend, fetch_docs
 from labmate.tools.literature import ArxivSearchBackend, search_literature
 
 ToolRisk = Literal["read_only", "mutating"]
@@ -100,6 +101,15 @@ def _as_optional_int(arguments: Mapping[str, JsonValue], name: str) -> int | Non
         return None
     if isinstance(value, bool) or not isinstance(value, int):
         raise ValueError(f"{name} must be an integer")
+    return value
+
+
+def _as_maybe_str(arguments: Mapping[str, JsonValue], name: str) -> str | None:
+    value = arguments.get(name)
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} must be a non-empty string")
     return value
 
 
@@ -219,6 +229,60 @@ def _citation_graph_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
     )
 
 
+def _docs_fetch_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
+    backend_name = "official_docs"
+    try:
+        query = _as_str(arguments, "query")
+        backend_name = _as_optional_str(arguments, "backend", "official_docs")
+        url = _as_maybe_str(arguments, "url")
+        max_results = _as_int(arguments, "max_results", 5)
+        if backend_name not in DOCS_BACKENDS:
+            return failure(
+                "docs_fetch",
+                code="backend_not_implemented",
+                message=f"Docs backend {backend_name!r} is not implemented.",
+                exit_code=ExitCode.BACKEND_UNAVAILABLE,
+                details={"backend": backend_name},
+            )
+        if backend_name == "local" and url is not None:
+            return failure(
+                "docs_fetch",
+                code="invalid_arguments",
+                message="The local docs backend searches the built-in catalog only; omit url.",
+                exit_code=ExitCode.USAGE_ERROR,
+                details={"backend": backend_name},
+            )
+
+        result = fetch_docs(
+            query,
+            backend=OfficialDocsBackend(name=backend_name),
+            url=url,
+            max_results=max_results,
+        )
+    except ValueError as exc:
+        return failure(
+            "docs_fetch",
+            code="invalid_arguments",
+            message=str(exc),
+            exit_code=ExitCode.USAGE_ERROR,
+        )
+    except OSError as exc:
+        return failure(
+            "docs_fetch",
+            code="backend_unavailable",
+            message=str(exc),
+            exit_code=ExitCode.BACKEND_UNAVAILABLE,
+            retryable=True,
+            details={"backend": backend_name},
+        )
+
+    return success(
+        "docs_fetch",
+        result.to_dict(),
+        metadata={"backend": backend_name},
+    )
+
+
 def _not_implemented_handler(tool_name: str) -> ToolHandler:
     def handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
         backend = arguments.get("backend")
@@ -239,6 +303,7 @@ def _not_implemented_handler(tool_name: str) -> ToolHandler:
 DATASET_BACKENDS = ("local", "huggingface", "kaggle", "openml", "uci")
 LITERATURE_BACKENDS = ("arxiv", "semantic_scholar", "openalex", "core")
 CITATION_BACKENDS = ("semantic_scholar", "openalex")
+DOCS_BACKENDS = ("official_docs", "huggingface", "local")
 
 _TOOLS: tuple[ToolDefinition, ...] = (
     ToolDefinition(
@@ -340,16 +405,22 @@ _TOOLS: tuple[ToolDefinition, ...] = (
         name="docs_fetch",
         description="Fetch current ML framework documentation and examples.",
         read_only=True,
-        backends=("official_docs", "huggingface", "local"),
+        backends=DOCS_BACKENDS,
         input_schema=_object_schema(
             {
                 "query": _string_schema("Documentation topic or API name."),
-                "backend": _backend_schema(("official_docs", "huggingface", "local")),
+                "backend": _backend_schema(DOCS_BACKENDS),
                 "url": _string_schema("Optional exact documentation URL.", min_length=1),
+                "max_results": _integer_schema(
+                    "Maximum documentation references to return.",
+                    minimum=1,
+                    maximum=20,
+                    default=5,
+                ),
             },
             required=("query",),
         ),
-        handler=_not_implemented_handler("docs_fetch"),
+        handler=_docs_fetch_handler,
     ),
     ToolDefinition(
         name="github_find_examples",

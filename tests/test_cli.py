@@ -43,6 +43,17 @@ def test_literature_search_unimplemented_backend_returns_contract_failure(capsys
     assert payload["error"]["details"] == {"backend": "openalex"}
 
 
+def test_docs_fetch_command_returns_catalog_results(capsys) -> None:
+    exit_code = main(["docs-fetch", "xgboost gpu parameters", "--backend", "local"])
+    payload = _json_output(capsys)
+
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["tool"] == "docs_fetch"
+    assert payload["result"]["documents"][0]["title"] == "XGBoost Parameters"
+    assert payload["result"]["documents"][0]["provenance_url"].startswith("https://")
+
+
 def test_init_command_can_dry_run_from_packaged_resources(tmp_path, capsys) -> None:
     exit_code = main(["init", "codex", str(tmp_path)])
     payload = _json_output(capsys)
