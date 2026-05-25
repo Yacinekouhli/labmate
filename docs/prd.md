@@ -44,12 +44,12 @@ The first release should include:
 - read-only tool registry
 - CLI JSON contracts
 - local project scan for unknown ML repositories
-- literature search skeleton
+- literature search with arXiv-backed results
 - first-pass research brief over local datasets and benchmark context
-- dataset inspection skeleton
-- benchmark lookup skeleton
-- docs fetch skeleton
-- GitHub example discovery skeleton
+- dataset inspection with Kaggle-style split and target-distribution hints
+- benchmark lookup with a curated local catalog
+- docs fetch with local catalog and direct official-doc URL fetch
+- GitHub example discovery with unauthenticated repository search
 - Codex custom agent/plugin examples
 - Claude Code skill/subagent/plugin examples
 - non-destructive Codex, Claude Code, and generic MCP init plans for existing ML repositories

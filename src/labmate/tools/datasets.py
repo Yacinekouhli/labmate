@@ -14,6 +14,7 @@ SUPPORTED_SUFFIXES = {".csv", ".tsv"}
 DEFAULT_SAMPLE_SIZE = 5
 DEFAULT_MAX_PROFILE_ROWS = 250_000
 MAX_TRACKED_UNIQUE_VALUES = 1_000
+MAX_TOP_VALUES = 10
 MAX_CONTEXT_FILES = 10
 MAX_CONTEXT_SNIPPET_CHARS = 1_500
 
@@ -188,6 +189,7 @@ def _new_column_profile(name: str, position: int) -> dict[str, Any]:
         "non_missing_count": 0,
         "type_counts": Counter(),
         "unique_values": set(),
+        "value_counts": Counter(),
         "unique_values_truncated": False,
     }
 
@@ -201,8 +203,9 @@ def _update_column_profile(column: dict[str, Any], raw_value: str | None) -> Non
     column["non_missing_count"] += 1
     column["type_counts"][_infer_scalar_type(value)] += 1
     unique_values = column["unique_values"]
-    if len(unique_values) < MAX_TRACKED_UNIQUE_VALUES:
+    if value in unique_values or len(unique_values) < MAX_TRACKED_UNIQUE_VALUES:
         unique_values.add(value)
+        column["value_counts"][value] += 1
     else:
         column["unique_values_truncated"] = True
 
@@ -223,8 +226,22 @@ def _finalize_column_profile(column: dict[str, Any], row_count: int) -> dict[str
         "non_missing_count": non_missing_count,
         "unique_values_profiled": len(unique_values),
         "unique_values_truncated": column["unique_values_truncated"],
+        "top_values": _top_values(column["value_counts"], row_count),
         "role_hints": _role_hints(column["name"], row_count, len(unique_values)),
     }
+
+
+def _top_values(value_counts: Counter[str], row_count: int) -> list[dict[str, Any]]:
+    if not value_counts:
+        return []
+    return [
+        {
+            "value": value,
+            "count": count,
+            "rate": round(count / row_count, 6) if row_count else 0.0,
+        }
+        for value, count in value_counts.most_common(MAX_TOP_VALUES)
+    ]
 
 
 def _is_missing(value: str) -> bool:

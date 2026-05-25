@@ -69,7 +69,7 @@ def build_research_brief(
             max_benchmarks=max_benchmarks,
         ),
         "implementation_checklist": _implementation_checklist(dataset_summary, benchmarks),
-        "warnings": _brief_warnings(dataset_summary, benchmarks),
+        "warnings": _brief_warnings(dataset_summary, benchmarks, inferred_task),
     }
 
 
@@ -127,6 +127,7 @@ def _column_summary(column: dict[str, Any]) -> dict[str, Any]:
         "missing_rate": column["missing_rate"],
         "unique_values_profiled": column["unique_values_profiled"],
         "unique_values_truncated": column["unique_values_truncated"],
+        "top_values": list(column.get("top_values", [])),
         "role_hints": list(column["role_hints"]),
     }
 
@@ -281,6 +282,25 @@ def _target_profile(
     return None
 
 
+def _target_distribution(
+    dataset_summary: dict[str, Any],
+    target_columns: list[str],
+) -> dict[str, Any] | None:
+    train_file = _training_file_summary(dataset_summary)
+    target_profile = _target_profile(train_file, target_columns)
+    if target_profile is None:
+        return None
+
+    return {
+        "column": target_profile["name"],
+        "profiled_row_count": train_file.get("profiled_row_count", 0),
+        "missing_rate": target_profile["missing_rate"],
+        "unique_values_profiled": target_profile["unique_values_profiled"],
+        "unique_values_truncated": target_profile["unique_values_truncated"],
+        "top_values": list(target_profile.get("top_values", [])),
+    }
+
+
 def _benchmark_query(inferred_task: dict[str, Any]) -> str:
     task_type = str(inferred_task["task_type"]).casefold()
     if inferred_task["confidence"] == "user_supplied":
@@ -296,6 +316,7 @@ def _evidence(
     dataset_summary: dict[str, Any],
     benchmarks: BenchmarkLookupResult,
 ) -> dict[str, Any]:
+    target_columns = _target_columns(dataset_summary)
     return {
         "dataset_files": [
             {
@@ -305,7 +326,8 @@ def _evidence(
             }
             for file_info in dataset_summary["files"]
         ],
-        "target_columns": _target_columns(dataset_summary),
+        "target_columns": target_columns,
+        "target_distribution": _target_distribution(dataset_summary, target_columns),
         "benchmark_urls": [
             benchmark.provenance_url or benchmark.url for benchmark in benchmarks.benchmarks
         ],
@@ -326,6 +348,7 @@ def _modeling_plan(
     target_columns = _target_columns(dataset_summary)
     feature_columns = _feature_columns(dataset_summary, target_columns)
     id_columns = _id_columns(dataset_summary)
+    target_distribution = _target_distribution(dataset_summary, target_columns)
     metric_hints = _metric_hints(dataset_summary)
     benchmark_metric = benchmarks.benchmarks[0].metric if benchmarks.benchmarks else None
     metric = metric_hints[0]["metric"] if metric_hints else benchmark_metric
@@ -334,6 +357,7 @@ def _modeling_plan(
     return {
         "readiness": readiness,
         "target_columns": target_columns,
+        "target_distribution": target_distribution,
         "id_columns": id_columns,
         "feature_columns": feature_columns,
         "suggested_metric": metric,
@@ -548,10 +572,55 @@ def _implementation_checklist(
 def _brief_warnings(
     dataset_summary: dict[str, Any],
     benchmarks: BenchmarkLookupResult,
+    inferred_task: dict[str, Any],
 ) -> list[str]:
     warnings = [
         "Research brief is a planning aid; verify competition rules and metrics at source URLs."
     ]
     warnings.extend(warning["message"] for warning in dataset_summary["warnings"])
+    warnings.extend(_target_distribution_warnings(dataset_summary, inferred_task))
     warnings.extend(benchmarks.warnings)
+    return warnings
+
+
+def _target_distribution_warnings(
+    dataset_summary: dict[str, Any],
+    inferred_task: dict[str, Any],
+) -> list[str]:
+    task_type = str(inferred_task["task_type"]).casefold()
+    if "classification" not in task_type:
+        return []
+
+    distribution = _target_distribution(dataset_summary, _target_columns(dataset_summary))
+    if distribution is None:
+        return []
+
+    warnings = []
+    if distribution["missing_rate"] > 0:
+        warnings.append(
+            f"Target {distribution['column']} has missing values in profiled rows; "
+            "confirm label handling before training."
+        )
+
+    top_values = distribution["top_values"]
+    if not top_values:
+        return warnings
+
+    if len(top_values) == 1:
+        warnings.append(
+            f"Target {distribution['column']} has only one observed non-missing value in "
+            "profiled rows; confirm this is the intended training file."
+        )
+        return warnings
+
+    if distribution["unique_values_truncated"]:
+        return warnings
+
+    dominant = top_values[0]
+    dominant_rate = float(dominant["rate"])
+    if dominant_rate >= 0.9:
+        warnings.append(
+            f"Target {distribution['column']} is imbalanced in profiled rows; "
+            f"dominant value {dominant['value']!r} has observed rate {dominant_rate:.3f}."
+        )
     return warnings

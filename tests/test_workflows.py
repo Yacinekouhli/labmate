@@ -36,6 +36,17 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
     }
     assert result["benchmark_context"]["benchmarks"]
     assert result["evidence"]["target_columns"] == ["target"]
+    assert result["evidence"]["target_distribution"] == {
+        "column": "target",
+        "profiled_row_count": 2,
+        "missing_rate": 0.0,
+        "unique_values_profiled": 2,
+        "unique_values_truncated": False,
+        "top_values": [
+            {"value": "0", "count": 1, "rate": 0.5},
+            {"value": "1", "count": 1, "rate": 0.5},
+        ],
+    }
     assert result["evidence"]["context_files"] == [
         {"file_name": "evaluation.md", "kind": "competition_rules"}
     ]
@@ -48,6 +59,10 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
     ]
     assert result["modeling_plan"]["readiness"] == "ready_for_baseline"
     assert result["modeling_plan"]["target_columns"] == ["target"]
+    assert (
+        result["modeling_plan"]["target_distribution"]
+        == (result["evidence"]["target_distribution"])
+    )
     assert result["modeling_plan"]["id_columns"] == ["id"]
     assert result["modeling_plan"]["feature_columns"] == ["feature"]
     assert result["modeling_plan"]["suggested_metric"] == "roc_auc"
@@ -98,3 +113,19 @@ def test_research_brief_respects_task_hint_and_benchmark_query(tmp_path) -> None
             "expected_output": "documented schema decision before modeling",
         }
     ]
+
+
+def test_research_brief_warns_about_imbalanced_classification_target(tmp_path) -> None:
+    rows = ["id,feature,target"]
+    rows.extend(f"{index},{index * 10},0" for index in range(1, 10))
+    rows.append("10,100,1")
+    (tmp_path / "train.csv").write_text("\n".join(rows), encoding="utf-8")
+
+    result = build_research_brief(tmp_path / "train.csv", max_benchmarks=1)
+
+    assert result["modeling_plan"]["target_distribution"]["top_values"][0] == {
+        "value": "0",
+        "count": 9,
+        "rate": 0.9,
+    }
+    assert any("imbalanced" in warning for warning in result["warnings"])

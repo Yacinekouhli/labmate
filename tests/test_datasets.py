@@ -31,6 +31,10 @@ def test_inspect_tabular_file_profiles_csv_for_kaggle_training_data(tmp_path) ->
     assert columns["feature"]["missing_count"] == 1
     assert columns["feature"]["missing_rate"] == 0.333333
     assert columns["target"]["inferred_type"] == "integer"
+    assert columns["target"]["top_values"] == [
+        {"value": "0", "count": 2, "rate": 0.666667},
+        {"value": "1", "count": 1, "rate": 0.333333},
+    ]
 
     assert result["target_column_hints"][0]["column"] == "target"
     assert {hint["risk"] for hint in result["leakage_risk_hints"]} >= {
