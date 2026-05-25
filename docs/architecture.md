@@ -33,6 +33,7 @@ This registry should power:
 - CLI command discovery
 - MCP tool schemas
 - skill documentation examples
+- concrete CLI/MCP usage examples
 - tests
 - allowlisting
 

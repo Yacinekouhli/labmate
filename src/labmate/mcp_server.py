@@ -41,6 +41,7 @@ def tool_to_mcp_metadata(tool: ToolDefinition) -> dict[str, Any]:
         "_meta": {
             "labmate/backends": list(tool.backends),
             "labmate/risk": tool.risk,
+            "labmate/usage_examples": list(tool.usage_examples),
         },
     }
 

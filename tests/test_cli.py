@@ -16,6 +16,10 @@ def test_tools_command_uses_contract_shape(capsys) -> None:
     assert payload["ok"] is True
     assert payload["tool"] == "tools"
     assert payload["result"]["tools"][0]["input_schema"]["type"] == "object"
+    assert payload["result"]["tools"][0]["usage_examples"]
+    assert {"cli", "mcp"} <= {
+        example["surface"] for example in payload["result"]["tools"][0]["usage_examples"]
+    }
 
 
 def test_dataset_inspect_command_calls_registered_handler(tmp_path, capsys) -> None:

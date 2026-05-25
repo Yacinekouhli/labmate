@@ -31,6 +31,7 @@ class ToolDefinition:
     backends: tuple[str, ...]
     input_schema: JsonObject
     handler: ToolHandler
+    usage_examples: tuple[JsonObject, ...] = ()
     risk: ToolRisk = "read_only"
 
 
@@ -79,6 +80,22 @@ def _backend_schema(backends: tuple[str, ...]) -> JsonObject:
         "type": "string",
         "enum": list(backends),
         "description": "Backend to use for this tool.",
+    }
+
+
+def _cli_example(command: str, description: str) -> JsonObject:
+    return {
+        "surface": "cli",
+        "description": description,
+        "command": command,
+    }
+
+
+def _mcp_example(arguments: Mapping[str, JsonValue], description: str) -> JsonObject:
+    return {
+        "surface": "mcp",
+        "description": description,
+        "arguments": dict(arguments),
     }
 
 
@@ -484,6 +501,16 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             required=("query",),
         ),
         handler=_literature_search_handler,
+        usage_examples=(
+            _cli_example(
+                'labmate literature-search "tabular classification baseline" --max-results 5',
+                "Find papers relevant to a modeling approach or task.",
+            ),
+            _mcp_example(
+                {"query": "tabular classification baseline", "max_results": 5},
+                "Search for papers from an MCP client.",
+            ),
+        ),
     ),
     ToolDefinition(
         name="citation_graph",
@@ -510,6 +537,16 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             required=("paper_id",),
         ),
         handler=_citation_graph_handler,
+        usage_examples=(
+            _cli_example(
+                "labmate citation-graph arxiv:1603.02754 --max-results 3",
+                "Inspect local citation context for a known paper.",
+            ),
+            _mcp_example(
+                {"paper_id": "arxiv:1603.02754", "max_results": 3},
+                "Fetch citation context from an MCP client.",
+            ),
+        ),
     ),
     ToolDefinition(
         name="dataset_inspect",
@@ -535,6 +572,16 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             required=("path",),
         ),
         handler=_dataset_inspect_handler,
+        usage_examples=(
+            _cli_example(
+                "labmate dataset-inspect data/ --sample-size 5",
+                "Inspect a local Kaggle-style data directory.",
+            ),
+            _mcp_example(
+                {"path": "data/", "sample_size": 5},
+                "Inspect a dataset through MCP.",
+            ),
+        ),
     ),
     ToolDefinition(
         name="research_brief",
@@ -570,6 +617,16 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             required=("path",),
         ),
         handler=_research_brief_handler,
+        usage_examples=(
+            _cli_example(
+                "labmate research-brief data/ --max-benchmarks 3",
+                "Create a first-pass brief before editing model code.",
+            ),
+            _mcp_example(
+                {"path": "data/", "max_benchmarks": 3},
+                "Build a research brief through MCP.",
+            ),
+        ),
     ),
     ToolDefinition(
         name="benchmark_lookup",
@@ -590,6 +647,16 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             required=("query",),
         ),
         handler=_benchmark_lookup_handler,
+        usage_examples=(
+            _cli_example(
+                'labmate benchmark-lookup "tabular classification auc" --max-results 3',
+                "Find metric, protocol, and baseline context for a task.",
+            ),
+            _mcp_example(
+                {"query": "tabular classification auc", "max_results": 3},
+                "Look up benchmark context through MCP.",
+            ),
+        ),
     ),
     ToolDefinition(
         name="docs_fetch",
@@ -611,6 +678,16 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             required=("query",),
         ),
         handler=_docs_fetch_handler,
+        usage_examples=(
+            _cli_example(
+                'labmate docs-fetch "sklearn ColumnTransformer pipeline" --max-results 3',
+                "Find official framework documentation for an implementation detail.",
+            ),
+            _mcp_example(
+                {"query": "sklearn ColumnTransformer pipeline", "max_results": 3},
+                "Fetch framework docs through MCP.",
+            ),
+        ),
     ),
     ToolDefinition(
         name="github_find_examples",
@@ -631,6 +708,16 @@ _TOOLS: tuple[ToolDefinition, ...] = (
             required=("query",),
         ),
         handler=_github_find_examples_handler,
+        usage_examples=(
+            _cli_example(
+                'labmate github-find-examples "sklearn pipeline kaggle" --max-results 3',
+                "Find public repository examples for an implementation pattern.",
+            ),
+            _mcp_example(
+                {"query": "sklearn pipeline kaggle", "max_results": 3},
+                "Find implementation examples through MCP.",
+            ),
+        ),
     ),
 )
 

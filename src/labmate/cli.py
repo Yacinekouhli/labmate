@@ -27,6 +27,7 @@ def _tools_response() -> ToolResponse:
                     "risk": tool.risk,
                     "backends": list(tool.backends),
                     "input_schema": tool.input_schema,
+                    "usage_examples": list(tool.usage_examples),
                 }
                 for tool in iter_tools()
             ]

@@ -40,6 +40,7 @@ def test_mcp_metadata_preserves_registry_tool_attributes() -> None:
     assert mcp_tool["annotations"] == {"readOnlyHint": True}
     assert mcp_tool["_meta"]["labmate/backends"] == list(registry_tool.backends)
     assert mcp_tool["_meta"]["labmate/risk"] == registry_tool.risk
+    assert mcp_tool["_meta"]["labmate/usage_examples"] == list(registry_tool.usage_examples)
 
 
 def test_mcp_tool_model_uses_registry_input_schema() -> None:
@@ -54,6 +55,7 @@ def test_mcp_tool_model_uses_registry_input_schema() -> None:
     assert mcp_tool.meta == {
         "labmate/backends": list(registry_tool.backends),
         "labmate/risk": registry_tool.risk,
+        "labmate/usage_examples": list(registry_tool.usage_examples),
     }
 
 

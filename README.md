@@ -61,7 +61,8 @@ uv run labmate init codex /path/to/ml-repo --apply
 
 Working today:
 
-- `labmate tools` lists the shared registry.
+- `labmate tools` lists the shared registry with schemas, backends, and CLI/MCP
+  usage examples.
 - `labmate research-brief <path>` creates a concise first-pass ML brief by
   combining local dataset inspection, rough task inference, local benchmark
   context, recommended follow-up commands, and an implementation checklist.
