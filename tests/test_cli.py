@@ -64,6 +64,11 @@ def test_research_brief_command_returns_workflow_contract(tmp_path, capsys) -> N
     assert payload["tool"] == "research_brief"
     assert payload["result"]["inferred_task"]["task_type"] == "tabular classification"
     assert payload["result"]["benchmark_context"]["benchmarks"]
+    assert payload["result"]["research_plan"][0]["tool"] == "dataset_inspect"
+    assert payload["result"]["research_plan"][0]["arguments"] == {
+        "path": str(tmp_path),
+        "sample_size": 5,
+    }
     assert any(
         "dataset-inspect" in command for command in payload["result"]["recommended_next_commands"]
     )

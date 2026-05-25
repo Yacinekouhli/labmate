@@ -39,7 +39,9 @@ This registry should power:
 
 Workflow tools, such as `research_brief`, may compose lower-level read-only
 tools, but they still enter through the registry and return the same
-`labmate.tool.v1` contract.
+`labmate.tool.v1` contract. When a workflow recommends more tool calls, it
+should expose those as structured actions with tool names, arguments, purpose,
+and evidence expectations, not only as shell strings.
 
 ## MCP Surface
 

@@ -78,6 +78,34 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
         warning["message"] != "No obvious target column detected from column names."
         for warning in result["dataset_summary"]["warnings"]
     )
+    assert [action["tool"] for action in result["research_plan"]] == [
+        "dataset_inspect",
+        "benchmark_lookup",
+        "literature_search",
+        "citation_graph",
+        "docs_fetch",
+        "github_find_examples",
+    ]
+    assert result["research_plan"][0] == {
+        "priority": 1,
+        "tool": "dataset_inspect",
+        "command": f"labmate dataset-inspect {tmp_path} --sample-size 5",
+        "arguments": {"path": str(tmp_path), "sample_size": 5},
+        "purpose": "Verify schema, split alignment, target hints, and leakage warnings.",
+        "evidence_to_extract": [
+            "target columns",
+            "train/test feature alignment",
+            "sample submission format",
+            "dataset warnings",
+        ],
+    }
+    assert result["research_plan"][1]["arguments"] == {
+        "query": "tabular classification auc kaggle",
+        "max_results": 1,
+    }
+    assert result["recommended_next_commands"] == [
+        action["command"] for action in result["research_plan"]
+    ]
     assert result["recommended_next_commands"][0].startswith("labmate dataset-inspect ")
     assert any("literature-search" in command for command in result["recommended_next_commands"])
     assert any("competition metric" in item for item in result["implementation_checklist"])

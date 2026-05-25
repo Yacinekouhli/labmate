@@ -51,6 +51,12 @@ def build_research_brief(
         backend=LocalBenchmarkBackend(),
         max_results=max_benchmarks,
     )
+    research_plan = _research_plan(
+        path=path,
+        benchmark_query=query,
+        inferred_task=inferred_task,
+        max_benchmarks=max_benchmarks,
+    )
 
     return {
         "kind": "ml_research_brief",
@@ -62,12 +68,8 @@ def build_research_brief(
         "benchmark_context": benchmarks.to_dict(),
         "evidence": _evidence(dataset_summary, benchmarks),
         "modeling_plan": _modeling_plan(dataset_summary, inferred_task, benchmarks),
-        "recommended_next_commands": _recommended_next_commands(
-            path=path,
-            benchmark_query=query,
-            inferred_task=inferred_task,
-            max_benchmarks=max_benchmarks,
-        ),
+        "research_plan": research_plan,
+        "recommended_next_commands": _recommended_next_commands(research_plan),
         "implementation_checklist": _implementation_checklist(dataset_summary, benchmarks),
         "warnings": _brief_warnings(dataset_summary, benchmarks, inferred_task),
     }
@@ -517,27 +519,117 @@ def _metric_hints(dataset_summary: dict[str, Any]) -> list[dict[str, str]]:
     return hints
 
 
-def _recommended_next_commands(
+def _research_plan(
     *,
     path: str | Path,
     benchmark_query: str,
     inferred_task: dict[str, Any],
     max_benchmarks: int,
-) -> list[str]:
+) -> list[dict[str, Any]]:
+    dataset_path = str(path)
     task_type = str(inferred_task["task_type"])
     literature_query = f"{task_type} baseline gradient boosting"
     docs_query = "sklearn ColumnTransformer pipeline"
     github_query = f"{task_type} kaggle baseline"
     return [
-        _command("labmate", "dataset-inspect", str(path), "--sample-size", "5"),
-        _command(
-            "labmate", "benchmark-lookup", benchmark_query, "--max-results", str(max_benchmarks)
+        _research_action(
+            priority=1,
+            tool="dataset_inspect",
+            command=_command("labmate", "dataset-inspect", dataset_path, "--sample-size", "5"),
+            arguments={"path": dataset_path, "sample_size": 5},
+            purpose="Verify schema, split alignment, target hints, and leakage warnings.",
+            evidence_to_extract=(
+                "target columns",
+                "train/test feature alignment",
+                "sample submission format",
+                "dataset warnings",
+            ),
         ),
-        _command("labmate", "literature-search", literature_query, "--max-results", "5"),
-        _command("labmate", "citation-graph", "arxiv:1603.02754", "--max-results", "3"),
-        _command("labmate", "docs-fetch", docs_query, "--max-results", "3"),
-        _command("labmate", "github-find-examples", github_query, "--max-results", "3"),
+        _research_action(
+            priority=2,
+            tool="benchmark_lookup",
+            command=_command(
+                "labmate", "benchmark-lookup", benchmark_query, "--max-results", str(max_benchmarks)
+            ),
+            arguments={"query": benchmark_query, "max_results": max_benchmarks},
+            purpose="Confirm metric, task protocol, baseline families, and common pitfalls.",
+            query=benchmark_query,
+            evidence_to_extract=(
+                "metric",
+                "validation protocol",
+                "baseline suggestions",
+                "pitfalls",
+            ),
+        ),
+        _research_action(
+            priority=3,
+            tool="literature_search",
+            command=_command(
+                "labmate",
+                "literature-search",
+                literature_query,
+                "--max-results",
+                "5",
+            ),
+            arguments={"query": literature_query, "max_results": 5},
+            purpose="Find papers that justify baseline and modeling choices.",
+            query=literature_query,
+            evidence_to_extract=("paper URLs", "method names", "relevance signals"),
+        ),
+        _research_action(
+            priority=4,
+            tool="citation_graph",
+            command=_command("labmate", "citation-graph", "arxiv:1603.02754", "--max-results", "3"),
+            arguments={"paper_id": "arxiv:1603.02754", "max_results": 3},
+            purpose="Inspect citation context for gradient-boosted tree baselines.",
+            evidence_to_extract=("related papers", "citation edges"),
+        ),
+        _research_action(
+            priority=5,
+            tool="docs_fetch",
+            command=_command("labmate", "docs-fetch", docs_query, "--max-results", "3"),
+            arguments={"query": docs_query, "max_results": 3},
+            purpose="Fetch framework documentation for a robust preprocessing pipeline.",
+            query=docs_query,
+            evidence_to_extract=("official docs URLs", "API names", "version caveats"),
+        ),
+        _research_action(
+            priority=6,
+            tool="github_find_examples",
+            command=_command("labmate", "github-find-examples", github_query, "--max-results", "3"),
+            arguments={"query": github_query, "max_results": 3},
+            purpose="Find implementation examples before editing model code.",
+            query=github_query,
+            evidence_to_extract=("repository URLs", "file snippets", "matched signals"),
+        ),
     ]
+
+
+def _research_action(
+    *,
+    priority: int,
+    tool: str,
+    command: str,
+    arguments: dict[str, Any],
+    purpose: str,
+    evidence_to_extract: tuple[str, ...],
+    query: str | None = None,
+) -> dict[str, Any]:
+    action = {
+        "priority": priority,
+        "tool": tool,
+        "command": command,
+        "arguments": arguments,
+        "purpose": purpose,
+        "evidence_to_extract": list(evidence_to_extract),
+    }
+    if query is not None:
+        action["query"] = query
+    return action
+
+
+def _recommended_next_commands(research_plan: list[dict[str, Any]]) -> list[str]:
+    return [str(action["command"]) for action in research_plan]
 
 
 def _command(*parts: str) -> str:

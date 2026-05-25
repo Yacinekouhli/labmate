@@ -71,8 +71,8 @@ Working today:
 - `labmate research-brief <path>` creates a concise first-pass ML brief by
   combining local dataset inspection, rough task inference, local benchmark
   context, local metric hints from documentation files, target distribution,
-  a baseline modeling plan, recommended follow-up commands, and an
-  implementation checklist.
+  a baseline modeling plan, a structured follow-up research plan, recommended
+  commands, and an implementation checklist.
 - `labmate dataset-inspect <path>` inspects local CSV/TSV files and Kaggle-style
   folders containing `train.csv`, `test.csv`, and `sample_submission.csv`.
 - `labmate literature-search <query>` uses the arXiv backend.
@@ -113,9 +113,10 @@ uv run labmate docs-fetch "sklearn ColumnTransformer pipeline" --max-results 3
 uv run labmate github-find-examples "sklearn pipeline tabular classification" --max-results 3
 ```
 
-The implementation plan should cite the returned URLs, dataset warnings,
-benchmark metric/protocol assumptions, modeling-plan choices, and relevant
-examples before proposing changes.
+The `research_plan` field contains ordered tool calls with arguments, purpose,
+and evidence to extract. The implementation plan should cite the returned URLs,
+dataset warnings, benchmark metric/protocol assumptions, modeling-plan choices,
+and relevant examples before proposing changes.
 
 ## Repository Layout
 

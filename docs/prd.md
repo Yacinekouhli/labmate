@@ -45,7 +45,8 @@ The first release should include:
 - CLI JSON contracts
 - local project scan for unknown ML repositories
 - literature search with arXiv-backed results
-- first-pass research brief over local datasets and benchmark context
+- first-pass research brief over local datasets, benchmark context, and ordered
+  follow-up research actions
 - dataset inspection with Kaggle-style split and target-distribution hints
 - benchmark lookup with a curated local catalog
 - docs fetch with local catalog and direct official-doc URL fetch
