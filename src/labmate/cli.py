@@ -86,6 +86,15 @@ def _build_parser() -> argparse.ArgumentParser:
     citation.add_argument("--max-results", type=int, default=20)
     citation.add_argument("--depth", type=int, default=1)
 
+    benchmark = subparsers.add_parser("benchmark-lookup", help="Find ML benchmark context.")
+    benchmark.add_argument("query", help="Benchmark, task, metric, or dataset query.")
+    benchmark.add_argument(
+        "--backend",
+        default="papers_with_code",
+        help="Benchmark backend. Defaults to Papers With Code.",
+    )
+    benchmark.add_argument("--max-results", type=int, default=10)
+
     docs = subparsers.add_parser("docs-fetch", help="Fetch ML framework documentation.")
     docs.add_argument("query", help="Documentation topic or API name.")
     docs.add_argument(
@@ -155,6 +164,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "backend": args.backend,
                     "max_results": args.max_results,
                     "depth": args.depth,
+                },
+            )
+        )
+
+    if args.command == "benchmark-lookup":
+        return _print_response(
+            call_tool(
+                "benchmark_lookup",
+                {
+                    "query": args.query,
+                    "backend": args.backend,
+                    "max_results": args.max_results,
                 },
             )
         )

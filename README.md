@@ -46,6 +46,13 @@ Working today:
 - `labmate init codex` and `labmate init claude-code` write non-destructive
   setup artifacts for existing ML repositories.
 
+Still stubbed or limited:
+
+- `labmate citation-graph <paper-id>` and `labmate benchmark-lookup <query>`
+  return structured not-implemented/backend-unavailable failures.
+- `github-find-examples` uses unauthenticated repository search; file-level code
+  snippets need a future authenticated code-search backend.
+
 ## Repository Layout
 
 ```text
