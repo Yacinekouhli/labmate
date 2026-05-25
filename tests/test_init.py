@@ -134,6 +134,7 @@ def test_init_templates_include_actionable_labmate_workflow(tmp_path: Path) -> N
         assert 'labmate docs-fetch "<framework API or concept>"' in text
         assert 'labmate github-find-examples "<implementation pattern>"' in text
 
+    assert "experiment-tracking plan" in program
     assert "--json" not in agents
 
 

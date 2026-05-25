@@ -30,5 +30,5 @@ Prefer these read-only commands when applicable:
 - `labmate docs-fetch "<framework API or concept>" --max-results 3`
 - `labmate github-find-examples "<implementation pattern>" --max-results 3`
 
-Return a concise summary with sources, commands run, risks, and recommended next
-steps. Do not edit files.
+Return a concise summary with sources, commands run, risks, recommended next
+steps, and the experiment-tracking plan when available. Do not edit files.

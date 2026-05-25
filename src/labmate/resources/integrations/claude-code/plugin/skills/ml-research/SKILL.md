@@ -16,4 +16,5 @@ Use Labmate to verify research evidence before ML implementation work.
    - `labmate literature-search "<method or task query>" --max-results 5`
    - `labmate docs-fetch "<framework API or concept>" --max-results 3`
    - `labmate github-find-examples "<implementation pattern>" --max-results 3`
-4. Return command outputs, URLs, risks, and implementation recommendations.
+4. Return command outputs, URLs, risks, experiment-tracking plan, and
+   implementation recommendations.

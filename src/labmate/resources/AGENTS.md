@@ -33,7 +33,8 @@ labmate github-find-examples "<implementation pattern>" --max-results 3
 ```
 
 Summarize the command outputs, cited URLs, dataset risks, metric/protocol
-assumptions, and implementation recommendations before changing model code.
+assumptions, experiment ledger plan, and implementation recommendations before
+changing model code.
 
 ## Initial Development Checks
 

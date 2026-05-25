@@ -87,6 +87,50 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
         "linear_baseline",
         "tree_boosting_baseline",
     ]
+    assert result["experiment_tracking_plan"] == {
+        "ledger_path": "results.tsv",
+        "format": "tsv",
+        "columns": [
+            "timestamp_utc",
+            "commit",
+            "experiment",
+            "model_family",
+            "features",
+            "validation_strategy",
+            "metric",
+            "score",
+            "score_direction",
+            "status",
+            "artifacts",
+            "notes",
+        ],
+        "primary_metric": "roc_auc",
+        "score_direction": "maximize",
+        "validation_strategy": "stratified_k_fold",
+        "baseline_experiments_to_log": [
+            {"name": "dummy_baseline", "model_family": "dummy"},
+            {"name": "linear_baseline", "model_family": "logistic_regression"},
+            {"name": "tree_boosting_baseline", "model_family": "gradient_boosting"},
+        ],
+        "required_artifacts": [
+            "training command or notebook path",
+            "config, random seed, and feature set",
+            "validation score from the stated validation strategy",
+            "git commit for the run",
+            "submission file preserving sample-submission ID and output columns",
+        ],
+        "keep_criteria": [
+            "Keep only runs with a logged command/config, commit, validation score, and notes.",
+            (
+                "Promote runs that improve roc_auc on stratified_k_fold without violating "
+                "dataset warnings."
+            ),
+        ],
+        "stop_criteria": [
+            "Do not escalate model complexity until dummy and simple baselines are logged.",
+            "Do not use public leaderboard feedback as the only validation signal.",
+        ],
+    }
     assert all(
         warning["message"] != "No obvious target column detected from column names."
         for warning in result["dataset_summary"]["warnings"]
@@ -156,6 +200,12 @@ def test_research_brief_respects_task_hint_and_benchmark_query(tmp_path) -> None
             "expected_output": "documented schema decision before modeling",
         }
     ]
+    assert (
+        result["experiment_tracking_plan"]["primary_metric"]
+        == "root_mean_squared_error_on_log_sale_price"
+    )
+    assert result["experiment_tracking_plan"]["score_direction"] == "minimize"
+    assert result["experiment_tracking_plan"]["validation_strategy"] == "not_ready"
 
 
 def test_research_brief_uses_provided_fold_column_for_validation(tmp_path) -> None:

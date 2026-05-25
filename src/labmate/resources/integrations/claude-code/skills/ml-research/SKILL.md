@@ -21,7 +21,8 @@ Workflow:
    - `labmate literature-search "<method or task query>" --max-results 5`
    - `labmate docs-fetch "<framework API or concept>" --max-results 3`
    - `labmate github-find-examples "<implementation pattern>" --max-results 3`
-4. Summarize command outputs, URLs, dataset risks, and metric/protocol assumptions.
+4. Summarize command outputs, URLs, dataset risks, metric/protocol assumptions,
+   and the experiment-tracking plan.
 5. Only recommend implementation steps that are grounded in retrieved evidence.
 
 Suggested Claude Code prompt:

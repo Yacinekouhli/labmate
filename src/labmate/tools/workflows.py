@@ -57,6 +57,7 @@ def build_research_brief(
         inferred_task=inferred_task,
         max_benchmarks=max_benchmarks,
     )
+    modeling_plan = _modeling_plan(dataset_summary, inferred_task, benchmarks)
 
     return {
         "kind": "ml_research_brief",
@@ -67,7 +68,11 @@ def build_research_brief(
         "dataset_summary": dataset_summary,
         "benchmark_context": benchmarks.to_dict(),
         "evidence": _evidence(dataset_summary, benchmarks),
-        "modeling_plan": _modeling_plan(dataset_summary, inferred_task, benchmarks),
+        "modeling_plan": modeling_plan,
+        "experiment_tracking_plan": _experiment_tracking_plan(
+            dataset_summary,
+            modeling_plan,
+        ),
         "research_plan": research_plan,
         "recommended_next_commands": _recommended_next_commands(research_plan),
         "implementation_checklist": _implementation_checklist(dataset_summary, benchmarks),
@@ -552,6 +557,111 @@ def _baseline_experiments(
     if benchmarks.benchmarks:
         experiments[2]["benchmark_reference"] = benchmarks.benchmarks[0].name
     return experiments
+
+
+def _experiment_tracking_plan(
+    dataset_summary: dict[str, Any],
+    modeling_plan: dict[str, Any],
+) -> dict[str, Any]:
+    metric = modeling_plan.get("suggested_metric") or "task_metric_from_rules"
+    validation_strategy = modeling_plan.get("validation_strategy", {})
+    baseline_experiments = modeling_plan.get("baseline_experiments", [])
+    submission_format = modeling_plan.get("submission_format")
+
+    artifacts = [
+        "training command or notebook path",
+        "config, random seed, and feature set",
+        "validation score from the stated validation strategy",
+        "git commit for the run",
+    ]
+    if isinstance(submission_format, dict) and submission_format.get("output_columns"):
+        artifacts.append("submission file preserving sample-submission ID and output columns")
+
+    return {
+        "ledger_path": "results.tsv",
+        "format": "tsv",
+        "columns": [
+            "timestamp_utc",
+            "commit",
+            "experiment",
+            "model_family",
+            "features",
+            "validation_strategy",
+            "metric",
+            "score",
+            "score_direction",
+            "status",
+            "artifacts",
+            "notes",
+        ],
+        "primary_metric": metric,
+        "score_direction": _metric_direction(metric),
+        "validation_strategy": validation_strategy.get("name", "unknown"),
+        "baseline_experiments_to_log": [
+            {
+                "name": experiment["name"],
+                "model_family": experiment["model_family"],
+            }
+            for experiment in baseline_experiments
+        ],
+        "required_artifacts": artifacts,
+        "keep_criteria": _experiment_keep_criteria(
+            dataset_summary,
+            metric=str(metric),
+            validation_strategy=str(validation_strategy.get("name", "unknown")),
+        ),
+        "stop_criteria": [
+            "Do not escalate model complexity until dummy and simple baselines are logged.",
+            "Do not use public leaderboard feedback as the only validation signal.",
+        ],
+    }
+
+
+def _metric_direction(metric: Any) -> str:
+    normalized = str(metric).casefold()
+    minimize_signals = (
+        "rmse",
+        "mae",
+        "log_loss",
+        "logloss",
+        "mean_squared_error",
+        "mean_absolute_error",
+        "mape",
+        "smape",
+        "loss",
+    )
+    maximize_signals = (
+        "roc_auc",
+        "auc",
+        "accuracy",
+        "f1",
+        "map_at_k",
+        "mean_average_precision",
+        "ndcg",
+    )
+    if any(signal in normalized for signal in minimize_signals):
+        return "minimize"
+    if any(signal in normalized for signal in maximize_signals):
+        return "maximize"
+    return "unknown"
+
+
+def _experiment_keep_criteria(
+    dataset_summary: dict[str, Any],
+    *,
+    metric: str,
+    validation_strategy: str,
+) -> list[str]:
+    criteria = [
+        "Keep only runs with a logged command/config, commit, validation score, and notes.",
+        (
+            f"Promote runs that improve {metric} on {validation_strategy} "
+            "without violating dataset warnings."
+        ),
+    ]
+    if dataset_summary["warnings"]:
+        criteria.append("Keep warning-bypassing runs only with an explicit justification.")
+    return criteria
 
 
 def _metric_hints(dataset_summary: dict[str, Any]) -> list[dict[str, str]]:

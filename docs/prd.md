@@ -47,7 +47,7 @@ The first release should include:
 - literature search with arXiv-backed results
 - first-pass research brief over local datasets, benchmark context, and ordered
   follow-up research actions, including provided validation/split-column guidance
-  and sample-submission format
+  sample-submission format, and an experiment-tracking plan
 - dataset inspection with plain/gzipped CSV and TSV support, zip archive
   inspection, Kaggle-style split hints, sample-submission row-count alignment,
   and target-distribution hints
@@ -60,7 +60,7 @@ The first release should include:
 
 ## Success Criteria
 
-- A coding agent can read `AGENTS.md` and `program.md`, run Labmate tools, and produce an evidence-backed ML implementation plan.
+- A coding agent can read `AGENTS.md` and `program.md`, run Labmate tools, and produce an evidence-backed ML implementation and experiment-tracking plan.
 - CLI and MCP surfaces expose the same tool definitions.
 - Codex can use `/goal` and an `ml_researcher` custom agent.
 - Claude Code can use `/goal`, `/ml-research`, and an `ml-researcher` subagent.

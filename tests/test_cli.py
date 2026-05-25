@@ -69,6 +69,13 @@ def test_research_brief_command_returns_workflow_contract(tmp_path, capsys) -> N
         "path": str(tmp_path),
         "sample_size": 5,
     }
+    assert payload["result"]["experiment_tracking_plan"]["ledger_path"] == "results.tsv"
+    assert payload["result"]["experiment_tracking_plan"]["columns"][:4] == [
+        "timestamp_utc",
+        "commit",
+        "experiment",
+        "model_family",
+    ]
     assert any(
         "dataset-inspect" in command for command in payload["result"]["recommended_next_commands"]
     )

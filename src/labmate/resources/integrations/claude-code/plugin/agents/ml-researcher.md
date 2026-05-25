@@ -20,4 +20,5 @@ Gather evidence with Labmate tools before implementation:
 - `labmate docs-fetch "<framework API or concept>" --max-results 3`
 - `labmate github-find-examples "<implementation pattern>" --max-results 3`
 
-Return sources, commands, risks, and concrete recommendations. Do not edit files.
+Return sources, commands, risks, experiment-tracking plan, and concrete
+recommendations. Do not edit files.
