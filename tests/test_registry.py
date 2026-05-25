@@ -6,6 +6,8 @@ def test_registry_contains_initial_read_only_tools() -> None:
 
     assert tools
     assert all(tool.read_only for tool in tools)
+    assert all(tool.input_schema["type"] == "object" for tool in tools)
+    assert all(callable(tool.handler) for tool in tools)
     assert {tool.name for tool in tools} >= {
         "literature_search",
         "citation_graph",

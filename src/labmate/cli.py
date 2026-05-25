@@ -1,42 +1,164 @@
-"""Minimal CLI for the initial Labmate scaffold."""
+"""Labmate command-line interface."""
 
 from __future__ import annotations
 
 import argparse
-import json
+from collections.abc import Sequence
 
-from labmate.tools.registry import iter_tools
+from labmate.contracts import ToolError, ToolFailure, ToolResponse, response_to_json, success
+from labmate.init import apply_init, plan_init
+from labmate.tools.registry import call_tool, iter_tools
 
 
-def main() -> None:
+def _print_response(response: ToolResponse) -> int:
+    print(response_to_json(response, indent=2))
+    return int(response.exit_code)
+
+
+def _tools_response() -> ToolResponse:
+    return success(
+        "tools",
+        {
+            "tools": [
+                {
+                    "name": tool.name,
+                    "description": tool.description,
+                    "read_only": tool.read_only,
+                    "risk": tool.risk,
+                    "backends": list(tool.backends),
+                    "input_schema": tool.input_schema,
+                }
+                for tool in iter_tools()
+            ]
+        },
+    )
+
+
+def _plan_to_result(plan, *, applied=None):
+    result = {
+        "harness": plan.harness,
+        "project_root": str(plan.project_root),
+        "goal_prompt": plan.goal_prompt,
+        "follow_up_commands": list(plan.follow_up_commands),
+        "notes": list(plan.notes),
+        "files": [
+            {
+                "source": str(file.source),
+                "destination": str(file.destination),
+                "relative_destination": file.relative_destination,
+                "action": file.action,
+                "reason": file.reason,
+            }
+            for file in plan.files
+        ],
+    }
+    if applied is not None:
+        result["applied"] = {
+            "written": [str(path) for path in applied.written],
+            "skipped": [str(path) for path in applied.skipped],
+        }
+    return result
+
+
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="labmate")
     subparsers = parser.add_subparsers(dest="command")
+
     subparsers.add_parser("tools", help="List registered tool definitions.")
 
-    args = parser.parse_args()
+    dataset = subparsers.add_parser("dataset-inspect", help="Inspect a local dataset.")
+    dataset.add_argument("path", help="CSV/TSV file or directory to inspect.")
+    dataset.add_argument("--backend", default="local", help="Dataset backend. Defaults to local.")
+    dataset.add_argument("--sample-size", type=int, default=5)
+    dataset.add_argument("--max-profile-rows", type=int, default=250_000)
+
+    literature = subparsers.add_parser("literature-search", help="Search ML literature.")
+    literature.add_argument("query", help="Paper search query.")
+    literature.add_argument(
+        "--backend", default="arxiv", help="Literature backend. Defaults to arXiv."
+    )
+    literature.add_argument("--max-results", type=int, default=10)
+    literature.add_argument("--since-year", type=int)
+
+    citation = subparsers.add_parser("citation-graph", help="Inspect paper citations.")
+    citation.add_argument("paper_id", help="Paper identifier.")
+    citation.add_argument("--backend", default="semantic_scholar")
+    citation.add_argument("--max-results", type=int, default=20)
+    citation.add_argument("--depth", type=int, default=1)
+
+    init = subparsers.add_parser("init", help="Plan or apply agent-harness setup.")
+    init.add_argument("harness", choices=["codex", "claude", "claude-code"])
+    init.add_argument("project_root")
+    init.add_argument("--apply", action="store_true", help="Write planned files.")
+    init.add_argument(
+        "--overwrite", action="store_true", help="Plan overwrites for existing files."
+    )
+
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = _build_parser()
+    args = parser.parse_args(argv)
 
     if args.command == "tools":
-        print(
-            json.dumps(
+        return _print_response(_tools_response())
+
+    if args.command == "dataset-inspect":
+        return _print_response(
+            call_tool(
+                "dataset_inspect",
                 {
-                    "ok": True,
-                    "tools": [
-                        {
-                            "name": tool.name,
-                            "description": tool.description,
-                            "read_only": tool.read_only,
-                            "backends": list(tool.backends),
-                        }
-                        for tool in iter_tools()
-                    ],
+                    "path": args.path,
+                    "backend": args.backend,
+                    "sample_size": args.sample_size,
+                    "max_profile_rows": args.max_profile_rows,
                 },
-                indent=2,
             )
         )
-        return
+
+    if args.command == "literature-search":
+        payload = {
+            "query": args.query,
+            "backend": args.backend,
+            "max_results": args.max_results,
+        }
+        if args.since_year is not None:
+            payload["since_year"] = args.since_year
+        return _print_response(call_tool("literature_search", payload))
+
+    if args.command == "citation-graph":
+        return _print_response(
+            call_tool(
+                "citation_graph",
+                {
+                    "paper_id": args.paper_id,
+                    "backend": args.backend,
+                    "max_results": args.max_results,
+                    "depth": args.depth,
+                },
+            )
+        )
+
+    if args.command == "init":
+        try:
+            plan = plan_init(args.harness, args.project_root, overwrite=args.overwrite)
+            applied = apply_init(plan) if args.apply else None
+        except Exception as exc:
+            return _print_response(
+                ToolFailure(
+                    tool="init",
+                    error=ToolError(
+                        code="init_failed",
+                        message=str(exc),
+                    ),
+                )
+            )
+        return _print_response(success("init", _plan_to_result(plan, applied=applied)))
 
     parser.print_help()
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

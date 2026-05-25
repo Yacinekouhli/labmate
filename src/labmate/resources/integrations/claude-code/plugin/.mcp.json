@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ml-intern": {
+      "type": "stdio",
+      "command": "uv",
+      "args": ["run", "labmate-mcp"]
+    }
+  }
+}

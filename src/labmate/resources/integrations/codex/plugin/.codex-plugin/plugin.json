@@ -1,0 +1,16 @@
+{
+  "name": "labmate",
+  "version": "0.1.0",
+  "description": "Agent-agnostic ML research workflows for Codex.",
+  "license": "MIT",
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Labmate",
+    "shortDescription": "ML research tools for coding agents",
+    "longDescription": "Use Labmate to verify papers, datasets, benchmarks, docs, and implementation examples before ML code changes.",
+    "developerName": "Labmate",
+    "category": "Developer Tools",
+    "capabilities": ["Read"]
+  }
+}

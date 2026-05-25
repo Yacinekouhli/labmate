@@ -49,6 +49,7 @@ The first release should include:
 - GitHub example discovery skeleton
 - Codex custom agent/plugin examples
 - Claude Code skill/subagent/plugin examples
+- non-destructive Codex and Claude Code init plans for existing ML repositories
 
 ## Success Criteria
 
@@ -56,4 +57,3 @@ The first release should include:
 - CLI and MCP surfaces expose the same tool definitions.
 - Codex can use `/goal` and an `ml_researcher` custom agent.
 - Claude Code can use `/goal`, `/ml-research`, and an `ml-researcher` subagent.
-
