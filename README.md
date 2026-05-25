@@ -76,7 +76,7 @@ Working today:
   implementation checklist.
 - `labmate dataset-inspect <path>` inspects local CSV/TSV files, gzipped
   CSV/TSV files, zip archives, and Kaggle-style folders containing
-  train/test/submission files.
+  train/test/submission files, including sample-submission row-count alignment.
 - `labmate literature-search <query>` uses the arXiv backend.
 - `labmate citation-graph <paper-id>` uses a local ML paper corpus for citation
   context around common tabular references such as `arxiv:1603.02754`.

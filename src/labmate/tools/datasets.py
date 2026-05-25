@@ -609,12 +609,16 @@ def _sample_submission_alignment(
     test_id_columns = _id_column_names(test)
     common_id_columns = sorted(set(submission_id_columns) & set(test_id_columns))
 
+    sample_submission_row_count = _exact_row_count(sample_submission)
+    test_row_count = _exact_row_count(test)
     row_counts_match = None
-    if sample_submission["row_count_status"] == "exact" and test["row_count_status"] == "exact":
-        row_counts_match = sample_submission["row_count"] == test["row_count"]
+    if sample_submission_row_count is not None and test_row_count is not None:
+        row_counts_match = sample_submission_row_count == test_row_count
 
     return {
         "common_id_columns": common_id_columns,
+        "sample_submission_row_count": sample_submission_row_count,
+        "test_row_count": test_row_count,
         "row_counts_match": row_counts_match,
         "submission_output_columns": [
             column["name"]
@@ -622,6 +626,13 @@ def _sample_submission_alignment(
             if column["name"] not in submission_id_columns
         ],
     }
+
+
+def _exact_row_count(file_info: dict[str, Any]) -> int | None:
+    if file_info["row_count_status"] != "exact":
+        return None
+    row_count = file_info["row_count"]
+    return row_count if isinstance(row_count, int) else None
 
 
 def _likely_directory_targets(
@@ -707,6 +718,17 @@ def _directory_warnings(files: list[dict[str, Any]], relations: dict[str, Any]) 
             warnings.append(
                 "Likely target columns are present in both train and test files; "
                 "verify this is not label leakage."
+            )
+    sample_submission_alignment = relations.get("sample_submission_alignment")
+    if isinstance(sample_submission_alignment, dict):
+        if sample_submission_alignment.get("row_counts_match") is False:
+            warnings.append(
+                "Sample submission row count does not match test row count; "
+                "verify submission IDs before modeling."
+            )
+        if not sample_submission_alignment.get("submission_output_columns"):
+            warnings.append(
+                "Sample submission has no non-ID output columns; verify the submission format."
             )
     return warnings
 

@@ -54,6 +54,8 @@ def test_research_brief_combines_dataset_and_benchmark_context(tmp_path) -> None
         "sample_submission_file": "sample_submission.csv",
         "id_columns": ["id"],
         "output_columns": ["target"],
+        "sample_submission_row_count": 2,
+        "test_row_count": 2,
         "row_counts_match_test": True,
     }
     assert result["evidence"]["context_files"] == [

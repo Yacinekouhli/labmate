@@ -108,6 +108,8 @@ def test_inspect_local_dataset_directory_adds_split_and_submission_hints(tmp_pat
     assert result["relations"]["sample_submission_file"] == "sample_submission.csv"
     assert result["relations"]["sample_submission_alignment"] == {
         "common_id_columns": ["id"],
+        "sample_submission_row_count": 2,
+        "test_row_count": 2,
         "row_counts_match": True,
         "submission_output_columns": ["target"],
     }
@@ -208,6 +210,36 @@ def test_inspect_local_dataset_warns_when_target_is_present_in_test(tmp_path) ->
     ]
     assert (
         "Likely target columns are present in both train and test files" in result["warnings"][-1]
+    )
+
+
+def test_inspect_local_dataset_warns_when_submission_count_mismatches_test(
+    tmp_path,
+) -> None:
+    (tmp_path / "train.csv").write_text(
+        "id,feature,target\n1,10,0\n2,11,1\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "test.csv").write_text(
+        "id,feature\n3,12\n4,13\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "sample_submission.csv").write_text(
+        "id,target\n3,0\n",
+        encoding="utf-8",
+    )
+
+    result = inspect_local_dataset(tmp_path)
+
+    assert result["relations"]["sample_submission_alignment"] == {
+        "common_id_columns": ["id"],
+        "sample_submission_row_count": 1,
+        "test_row_count": 2,
+        "row_counts_match": False,
+        "submission_output_columns": ["target"],
+    }
+    assert any(
+        "row count does not match test row count" in warning for warning in result["warnings"]
     )
 
 

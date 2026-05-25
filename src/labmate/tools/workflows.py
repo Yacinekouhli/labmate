@@ -450,6 +450,8 @@ def _submission_format(dataset_summary: dict[str, Any]) -> dict[str, Any] | None
         "sample_submission_file": sample_submission_file,
         "id_columns": normalized_id_columns,
         "output_columns": normalized_output_columns,
+        "sample_submission_row_count": alignment.get("sample_submission_row_count"),
+        "test_row_count": alignment.get("test_row_count"),
         "row_counts_match_test": alignment.get("row_counts_match"),
     }
 
