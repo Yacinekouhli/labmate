@@ -333,6 +333,20 @@ class ArxivSearchBackend:
         return f"{self._api_url}?{params}"
 
 
+def default_local_corpus_backend(
+    *,
+    now: Callable[[], datetime] | None = None,
+) -> LocalCorpusBackend:
+    """Return a small built-in ML paper corpus for offline citation context."""
+
+    return LocalCorpusBackend(
+        _LOCAL_ML_PAPERS,
+        references=_LOCAL_ML_REFERENCES,
+        citations=_LOCAL_ML_CITATIONS,
+        now=now,
+    )
+
+
 def search_literature(
     query: str,
     *,
@@ -497,3 +511,95 @@ def _isoformat(value: datetime) -> str:
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+_LOCAL_ML_PAPERS = (
+    Paper(
+        title="Tabular Prior-Data Fitted Networks",
+        authors=("Noah Hollmann", "Samuel Muller", "Katharina Eggensperger", "Frank Hutter"),
+        year=2022,
+        source="local_corpus",
+        ids={"arxiv": "2207.01848"},
+        url="https://arxiv.org/abs/2207.01848",
+        abstract=(
+            "Prior-data fitted networks use synthetic priors and transformer-style "
+            "architectures to provide strong tabular baselines with little task-specific tuning."
+        ),
+        provenance_url="https://arxiv.org/abs/2207.01848",
+    ),
+    Paper(
+        title="TabNet: Attentive Interpretable Tabular Learning",
+        authors=("Sercan O. Arik", "Tomas Pfister"),
+        year=2019,
+        source="local_corpus",
+        ids={"arxiv": "1908.07442"},
+        url="https://arxiv.org/abs/1908.07442",
+        abstract=(
+            "TabNet uses sequential attention to select tabular features and support "
+            "interpretable supervised and self-supervised learning."
+        ),
+        provenance_url="https://arxiv.org/abs/1908.07442",
+    ),
+    Paper(
+        title="XGBoost: A Scalable Tree Boosting System",
+        authors=("Tianqi Chen", "Carlos Guestrin"),
+        year=2016,
+        source="local_corpus",
+        ids={"arxiv": "1603.02754"},
+        url="https://arxiv.org/abs/1603.02754",
+        abstract=(
+            "XGBoost describes a scalable gradient tree boosting system widely used "
+            "for tabular machine learning and structured prediction tasks."
+        ),
+        provenance_url="https://arxiv.org/abs/1603.02754",
+    ),
+    Paper(
+        title="LightGBM: A Highly Efficient Gradient Boosting Decision Tree",
+        authors=("Guolin Ke", "Qi Meng", "Thomas Finley", "Taifeng Wang"),
+        year=2017,
+        source="local_corpus",
+        ids={"papers_with_code": "lightgbm"},
+        url="https://papers.nips.cc/paper/6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree",
+        abstract=(
+            "LightGBM introduces histogram-based gradient boosting with gradient-based "
+            "one-side sampling and exclusive feature bundling."
+        ),
+        provenance_url=(
+            "https://papers.nips.cc/paper/"
+            "6907-lightgbm-a-highly-efficient-gradient-boosting-decision-tree"
+        ),
+    ),
+    Paper(
+        title="CatBoost: Unbiased Boosting with Categorical Features",
+        authors=("Liudmila Prokhorenkova", "Gleb Gusev", "Aleksandr Vorobev"),
+        year=2018,
+        source="local_corpus",
+        ids={"arxiv": "1706.09516"},
+        url="https://arxiv.org/abs/1706.09516",
+        abstract=(
+            "CatBoost studies ordered boosting and categorical feature handling for "
+            "gradient boosting on decision trees."
+        ),
+        provenance_url="https://arxiv.org/abs/1706.09516",
+    ),
+)
+
+_LOCAL_ML_REFERENCES = {
+    "arxiv:2207.01848": (
+        "arxiv:1908.07442",
+        "arxiv:1603.02754",
+    ),
+    "arxiv:1908.07442": ("arxiv:1603.02754",),
+    "arxiv:1706.09516": ("arxiv:1603.02754",),
+    "papers_with_code:lightgbm": ("arxiv:1603.02754",),
+}
+
+_LOCAL_ML_CITATIONS = {
+    "arxiv:1603.02754": (
+        "arxiv:1908.07442",
+        "arxiv:2207.01848",
+        "arxiv:1706.09516",
+        "papers_with_code:lightgbm",
+    ),
+    "arxiv:1908.07442": ("arxiv:2207.01848",),
+}

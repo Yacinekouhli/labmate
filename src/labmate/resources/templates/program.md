@@ -27,6 +27,7 @@ Run the relevant Labmate commands before editing model code.
   - Capture: metric, protocol, target, pitfalls, baseline suggestions, source URL.
 - Papers:
   - Command: `labmate literature-search "<method or task query>" --max-results 5`
+  - Optional citation context: `labmate citation-graph <paper-id>`
   - Capture: title, year, authors, source URL, relevance signals.
 - Current framework docs:
   - Command: `labmate docs-fetch "<framework API or concept>" --max-results 3`

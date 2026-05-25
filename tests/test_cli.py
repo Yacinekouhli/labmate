@@ -43,6 +43,38 @@ def test_literature_search_unimplemented_backend_returns_contract_failure(capsys
     assert payload["error"]["details"] == {"backend": "openalex"}
 
 
+def test_citation_graph_command_returns_local_corpus_results(capsys) -> None:
+    exit_code = main(["citation-graph", "arxiv:1603.02754", "--max-results", "2"])
+    payload = _json_output(capsys)
+
+    assert exit_code == 0
+    assert payload["ok"] is True
+    assert payload["tool"] == "citation_graph"
+    assert payload["result"]["root"]["title"] == "XGBoost: A Scalable Tree Boosting System"
+    assert payload["result"]["citations"]
+
+
+def test_citation_graph_command_reports_unimplemented_remote_backend(capsys) -> None:
+    exit_code = main(["citation-graph", "arxiv:1603.02754", "--backend", "semantic_scholar"])
+    payload = _json_output(capsys)
+
+    assert exit_code != 0
+    assert payload["ok"] is False
+    assert payload["tool"] == "citation_graph"
+    assert payload["error"]["code"] == "backend_not_implemented"
+    assert payload["error"]["details"]["backend"] == "semantic_scholar"
+
+
+def test_citation_graph_command_reports_unknown_local_paper(capsys) -> None:
+    exit_code = main(["citation-graph", "arxiv:0000.00000"])
+    payload = _json_output(capsys)
+
+    assert exit_code != 0
+    assert payload["ok"] is False
+    assert payload["tool"] == "citation_graph"
+    assert payload["error"]["code"] == "paper_not_found"
+
+
 def test_docs_fetch_command_returns_catalog_results(capsys) -> None:
     exit_code = main(["docs-fetch", "xgboost gpu parameters", "--backend", "local"])
     payload = _json_output(capsys)

@@ -11,7 +11,12 @@ from labmate.tools.benchmarks import LocalBenchmarkBackend, lookup_benchmarks
 from labmate.tools.datasets import DatasetInspectionError, inspect_local_dataset
 from labmate.tools.docs import OfficialDocsBackend, fetch_docs
 from labmate.tools.github import GitHubRepositorySearchBackend, find_github_examples
-from labmate.tools.literature import ArxivSearchBackend, search_literature
+from labmate.tools.literature import (
+    ArxivSearchBackend,
+    citation_graph,
+    default_local_corpus_backend,
+    search_literature,
+)
 
 ToolRisk = Literal["read_only", "mutating"]
 ToolHandler = Callable[[Mapping[str, JsonValue]], ToolResponse]
@@ -203,9 +208,29 @@ def _literature_search_handler(arguments: Mapping[str, JsonValue]) -> ToolRespon
 def _citation_graph_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
     try:
         paper_id = _as_str(arguments, "paper_id")
-        backend_name = _as_optional_str(arguments, "backend", "semantic_scholar")
+        backend_name = _as_optional_str(arguments, "backend", "local")
         max_results = _as_int(arguments, "max_results", 20)
         depth = _as_int(arguments, "depth", 1)
+        if backend_name != "local":
+            return failure(
+                "citation_graph",
+                code="backend_not_implemented",
+                message=f"Citation backend {backend_name!r} is not implemented yet.",
+                exit_code=ExitCode.BACKEND_UNAVAILABLE,
+                details={
+                    "paper_id": paper_id,
+                    "backend": backend_name,
+                    "max_results": max_results,
+                    "depth": depth,
+                },
+            )
+
+        result = citation_graph(
+            paper_id,
+            backend=default_local_corpus_backend(),
+            max_results=max_results,
+            depth=depth,
+        )
     except ValueError as exc:
         return failure(
             "citation_graph",
@@ -213,21 +238,19 @@ def _citation_graph_handler(arguments: Mapping[str, JsonValue]) -> ToolResponse:
             message=str(exc),
             exit_code=ExitCode.USAGE_ERROR,
         )
+    except KeyError as exc:
+        return failure(
+            "citation_graph",
+            code="paper_not_found",
+            message=str(exc),
+            exit_code=ExitCode.USAGE_ERROR,
+            details={"paper_id": paper_id, "backend": backend_name},
+        )
 
-    return failure(
+    return success(
         "citation_graph",
-        code="backend_not_implemented",
-        message=(
-            "Citation graph execution is not implemented yet. "
-            "Add a Semantic Scholar or OpenAlex backend before using this tool."
-        ),
-        exit_code=ExitCode.BACKEND_UNAVAILABLE,
-        details={
-            "paper_id": paper_id,
-            "backend": backend_name,
-            "max_results": max_results,
-            "depth": depth,
-        },
+        result.to_dict(),
+        metadata={"backend": backend_name},
     )
 
 
@@ -383,7 +406,7 @@ def _not_implemented_handler(tool_name: str) -> ToolHandler:
 
 DATASET_BACKENDS = ("local", "huggingface", "kaggle", "openml", "uci")
 LITERATURE_BACKENDS = ("arxiv", "semantic_scholar", "openalex", "core")
-CITATION_BACKENDS = ("semantic_scholar", "openalex")
+CITATION_BACKENDS = ("local", "semantic_scholar", "openalex")
 DOCS_BACKENDS = ("official_docs", "huggingface", "local")
 BENCHMARK_BACKENDS = ("local", "papers_with_code", "openml")
 

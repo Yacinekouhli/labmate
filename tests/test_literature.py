@@ -7,6 +7,7 @@ from labmate.tools.literature import (
     LocalCorpusBackend,
     Paper,
     citation_graph,
+    default_local_corpus_backend,
     search_literature,
 )
 
@@ -102,6 +103,22 @@ def test_local_citation_graph_rejects_unsupported_depth() -> None:
 
     with pytest.raises(ValueError, match="depth=1"):
         citation_graph("arxiv:2207.01848", backend=backend, depth=2)
+
+
+def test_default_local_corpus_has_tabular_citation_context() -> None:
+    backend = default_local_corpus_backend(now=fixed_now)
+
+    result = citation_graph("arxiv:1603.02754", backend=backend, max_results=3)
+
+    assert result.backend == "local_corpus"
+    assert result.retrieved_at == "2026-05-25T12:00:00Z"
+    assert result.root.title == "XGBoost: A Scalable Tree Boosting System"
+    assert [paper.ids.get("arxiv") for paper in result.citations[:2]] == [
+        "1908.07442",
+        "2207.01848",
+    ]
+    assert result.edges[0].target_id == "arxiv:1603.02754"
+    assert result.edges[0].relation == "cited_by"
 
 
 def test_arxiv_backend_parses_mocked_feed_and_keeps_fetcher_optional() -> None:

@@ -38,6 +38,8 @@ Working today:
 - `labmate dataset-inspect <path>` inspects local CSV/TSV files and Kaggle-style
   folders containing `train.csv`, `test.csv`, and `sample_submission.csv`.
 - `labmate literature-search <query>` uses the arXiv backend.
+- `labmate citation-graph <paper-id>` uses a local ML paper corpus for citation
+  context around common tabular references such as `arxiv:1603.02754`.
 - `labmate benchmark-lookup <query>` searches a curated local benchmark catalog
   for task, metric, protocol, pitfalls, and baseline hints.
 - `labmate docs-fetch <query>` searches an official-docs catalog, and
@@ -50,8 +52,8 @@ Working today:
 
 Still stubbed or limited:
 
-- `labmate citation-graph <paper-id>` returns a structured backend-unavailable
-  failure until a remote citation backend is added.
+- `citation-graph --backend semantic_scholar` and `--backend openalex` return
+  structured backend-unavailable failures; the default local corpus works.
 - `benchmark-lookup --backend papers_with_code` and `--backend openml` return
   structured backend-unavailable failures; the default local catalog works.
 - `github-find-examples` uses unauthenticated repository search; file-level code

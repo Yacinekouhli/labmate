@@ -82,7 +82,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     citation = subparsers.add_parser("citation-graph", help="Inspect paper citations.")
     citation.add_argument("paper_id", help="Paper identifier.")
-    citation.add_argument("--backend", default="semantic_scholar")
+    citation.add_argument("--backend", default="local")
     citation.add_argument("--max-results", type=int, default=20)
     citation.add_argument("--depth", type=int, default=1)
 
