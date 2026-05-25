@@ -1,7 +1,6 @@
 {
-  "ml-intern": {
+  "labmate": {
     "command": "uv",
     "args": ["run", "labmate-mcp"]
   }
 }
-

@@ -112,6 +112,35 @@ def test_init_templates_include_actionable_labmate_workflow(tmp_path: Path) -> N
     assert "--json" not in agents
 
 
+def test_all_mcp_snippets_use_labmate_alias() -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    snippets = [
+        repo_root / "integrations" / "codex" / "plugin" / ".mcp.json",
+        repo_root / "integrations" / "claude-code" / "plugin" / ".mcp.json",
+        repo_root
+        / "src"
+        / "labmate"
+        / "resources"
+        / "integrations"
+        / "codex"
+        / "plugin"
+        / ".mcp.json",
+        repo_root
+        / "src"
+        / "labmate"
+        / "resources"
+        / "integrations"
+        / "claude-code"
+        / "plugin"
+        / ".mcp.json",
+    ]
+
+    for snippet in snippets:
+        text = snippet.read_text()
+        assert '"labmate"' in text
+        assert "ml-intern" not in text
+
+
 def test_unknown_harness_is_rejected(tmp_path: Path) -> None:
     with pytest.raises(UnknownHarnessError):
         plan_init("cursor", tmp_path)
